@@ -1,13 +1,13 @@
 @file:Suppress("SpellCheckingInspection", "MemberVisibilityCanBePrivate")
 
-package xyz.xszq
-
 import com.github.doyaaaaaken.kotlincsv.dsl.csvReader
 import com.soywiz.kds.iterators.fastForEach
 import com.soywiz.kds.iterators.fastForEachWithIndex
 import com.soywiz.kds.mapDouble
+import com.soywiz.korio.file.VfsFile
+import com.soywiz.korio.file.baseName
+import com.soywiz.korio.file.std.openAsZip
 import com.soywiz.korio.file.std.toVfs
-import com.soywiz.korio.file.writeToFile
 import com.soywiz.korio.lang.substr
 import io.ktor.http.*
 import kotlinx.coroutines.launch
@@ -23,9 +23,7 @@ import net.mamoe.mirai.message.data.PlainText
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
 import net.mamoe.mirai.utils.info
-import xyz.xszq.maimai.*
-import xyz.xszq.xyz.xszq.maimai.MaimaiConfig
-import xyz.xszq.xyz.xszq.maimai.MaimaiImage
+
 
 object MaimaiBot : KotlinPlugin(
     JvmPluginDescription(
@@ -148,19 +146,32 @@ object MaimaiBot : KotlinPlugin(
         }
     }
     private suspend fun extractResources() {
-        resourcesDataDirs.fastForEach { dir -> extractResourceDir(dir) }
-        extractResourceDir(resourcesConfDir, true)
+        // TODO: Switch back to the normal approach. This is only a TEMPORARY solution
+        val jar = (resolveConfigFile("../../plugins/")).toVfs().listSimple()
+            .find { it.baseName.startsWith("maimai-bot") }!!.openAsZip()
+        resourcesDataDirs.fastForEach { dir -> extractResourceDir(jar, dir) }
+        extractResourceDir(jar, resourcesConfDir, true)
     }
-    private suspend fun extractResourceDir(dir: String, isConfig: Boolean = false) {
+    private suspend fun extractResourceDir(jar: VfsFile, dir: String, isConfig: Boolean = false) {
         val now = (if (isConfig) MaimaiBot.resolveConfigFile("") else MaimaiBot.resolveDataFile(dir)).toVfs()
         if (now.isFile())
             now.delete()
         now.mkdir()
-        getResourceAsStream(dir)?.reader()?.readLines()?.fastForEach {
+//        getResourceAsStream(dir)?.reader()?.readLines()?.fastForEach {
+//            runCatching {
+//                val target = now[it]
+//                if (!target.exists())
+//                    getResourceAsStream("$dir/$it")!!.readBytes().writeToFile(target)
+//            }.onFailure { e ->
+//                e.printStackTrace()
+//            }
+//        }
+        // TODO: Fix code above. This is only a TEMPORARY solution
+        jar[dir].list().collect {
             runCatching {
-                val target = now[it]
+                val target = now[it.baseName]
                 if (!target.exists())
-                    getResourceAsStream("$dir/$it")!!.readBytes().writeToFile(target)
+                    it.copyTo(target)
             }.onFailure { e ->
                 e.printStackTrace()
             }

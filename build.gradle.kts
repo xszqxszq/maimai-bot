@@ -10,6 +10,8 @@ plugins {
 
 group = "xyz.xszq"
 version = "1.0"
+val korlibsVersion = "2.5.2"
+val ktorVersion = "1.6.7"
 
 repositories {
     maven("https://maven.aliyun.com/repository/public")
@@ -18,9 +20,9 @@ repositories {
 
 dependencies {
     implementation("com.github.doyaaaaaken:kotlin-csv-jvm:1.2.0")
-    implementation("com.soywiz.korlibs.korim:korim:2.5.2")
-    implementation("com.soywiz.korlibs.korio:korio:2.5.2")
-    implementation("io.ktor:ktor-client-core:1.6.7")
-    implementation("io.ktor:ktor-client-cio:1.6.7")
-    implementation("io.ktor:ktor-client-serialization:1.6.7")
+    implementation("com.soywiz.korlibs.korim:korim:$korlibsVersion")
+    implementation("com.soywiz.korlibs.korio:korio:$korlibsVersion")
+    implementation("io.ktor:ktor-client-core:$ktorVersion")
+    implementation("io.ktor:ktor-client-okhttp:$ktorVersion")
+    implementation("io.ktor:ktor-client-serialization:$ktorVersion")
 }
