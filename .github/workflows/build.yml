@@ -1,13 +1,14 @@
 name: Build
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
     paths-ignore:
       - 'docs/**'
       - '.github/workflows/build.yml'
       - '.gitignore'
+      - 'README.md'
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
   workflow_dispatch:
 jobs:
   build:
