@@ -90,30 +90,30 @@ object MaimaiImage {
 
     fun ratingColor(rating: Int, b50: Boolean = false): String = if (b50) {
         when (rating) {
-            in (0..999) -> "normal"
-            in (1000..1999) -> "blue"
-            in (2000..3999) -> "green"
-            in (4000..6999) -> "orange"
-            in (7000..9999) -> "red"
-            in (10000..11999) -> "purple"
-            in (12000..12999) -> "bronze"
-            in (13000..13999) -> "silver"
-            in (14000..14499) -> "gold"
-            in (14500..14999) -> "gold" // Actually another color
-            in (15000..40000) -> "rainbow"
+            in 0..999 -> "normal"
+            in 1000..1999 -> "blue"
+            in 2000..3999 -> "green"
+            in 4000..6999 -> "orange"
+            in 7000..9999 -> "red"
+            in 10000..11999 -> "purple"
+            in 12000..12999 -> "bronze"
+            in 13000..13999 -> "silver"
+            in 14000..14499 -> "gold"
+            in 14500..14999 -> "gold" // Actually another color
+            in 15000..40000 -> "rainbow"
             else -> "normal"
         }
     } else when (rating) {
-        in (0..999) -> "normal"
-        in (1000..1999) -> "blue"
-        in (2000..2999) -> "green"
-        in (3000..3999) -> "orange"
-        in (4000..4999) -> "red"
-        in (5000..5999) -> "purple"
-        in (6000..6999) -> "bronze"
-        in (7000..7999) -> "silver"
-        in (8000..8499) -> "gold"
-        in (8500..20000) -> "rainbow"
+        in 0..999 -> "normal"
+        in 1000..1999 -> "blue"
+        in 2000..2999 -> "green"
+        in 3000..3999 -> "orange"
+        in 4000..4999 -> "red"
+        in 5000..5999 -> "purple"
+        in 6000..6999 -> "bronze"
+        in 7000..7999 -> "silver"
+        in 8000..8499 -> "gold"
+        in 8500..20000 -> "rainbow"
         else -> "normal"
     }
     fun difficulty2Name(id: Int, english: Boolean = true): String {

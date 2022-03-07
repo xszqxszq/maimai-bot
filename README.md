@@ -6,6 +6,8 @@
 
 本插件开箱即用，只需和其他插件一样放入 [MCL](https://github.com/iTXTech/mcl-installer) 或其他版本的 Mirai 控制台 的 ```plugins``` 目录即可。
 
+**注意，由于一些原因，目前版本请不要修改插件文件名。**
+
 如果您尚不清楚 Mirai 如何安装，请阅读 [Mirai 官方教程](https://github.com/mamoe/mirai/blob/dev/docs/UserManual.md) ，在安装好控制台后再安装本插件使用。
 
 ## 支持的功能

@@ -33,7 +33,7 @@ object EmptyMaimaiPlayRecord: MaimaiPlayScore(0.0, .0, 0, "", "", "",
     0, "", 0, "", -1, "", "")
 fun List<MaimaiPlayScore>.fillEmpty(target: Int): List<MaimaiPlayScore> {
     val result = toMutableList()
-    for (i in (1..(target-size)))
+    for (i in 1..(target-size))
         result.add(EmptyMaimaiPlayRecord)
     return result
 }
