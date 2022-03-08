@@ -25,7 +25,7 @@ jobs:
         run: chmod -R 777 *
 
       - name: Init gradle project
-        run: ./gradlew clean --scan
+        run: ./gradlew clean --scan && ./gradlew init
 
       - name: Build
         run: ./gradlew buildPlugin

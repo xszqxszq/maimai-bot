@@ -292,13 +292,13 @@ object MaimaiConfig: AutoSavePluginConfig("maimai") {
             "b40_bg.png",
             160, 16.0 / 9
         ).apply {
-        pos["name"] = MaiPicPosition("FZYouH_513B", 30, 84, 45)
+        pos["name"] = MaiPicPosition("Microsoft YaHei", 30, 84, 45)
         pos["dxrating"] = MaiPicPosition("Arial Black", 16, 574, 39)
-        pos["ratingDetail"] = MaiPicPosition("Source Han Sans CN Bold Bold", 20, 225, 102)
-        pos["chTitle"] = MaiPicPosition("FZYouH_513B", 18, 8, 22)
-        pos["chAchievements"] = MaiPicPosition("FZYouH_513B", 16, 8, 44)
-        pos["chBase"] = MaiPicPosition("FZYouH_513B", 16, 8, 60)
-        pos["chRank"] = MaiPicPosition("FZYouH_513B", 18, 8, 80)
+        pos["ratingDetail"] = MaiPicPosition("Microsoft YaHei", 20, 225, 102)
+        pos["chTitle"] = MaiPicPosition("Microsoft YaHei", 18, 8, 22)
+        pos["chAchievements"] = MaiPicPosition("Microsoft YaHei", 16, 8, 44)
+        pos["chBase"] = MaiPicPosition("Microsoft YaHei", 16, 8, 60)
+        pos["chRank"] = MaiPicPosition("Microsoft YaHei", 18, 8, 80)
         pos["label"] = MaiPicPosition(x = -19, y = 0, scale = 1.0)
         pos["rateIcon"] = MaiPicPosition(x = 85, y = 25, scale = 0.8)
         pos["fcIcon"] = MaiPicPosition(x = 130, y = 25, scale = 0.5)
@@ -312,13 +312,13 @@ object MaimaiConfig: AutoSavePluginConfig("maimai") {
             "b50_bg.png",
             190, 16.0 / 9
         ).apply {
-        pos["name"] = MaiPicPosition("FZYouH_513B", 30, 484, 60)
+        pos["name"] = MaiPicPosition("Microsoft YaHei", 30, 484, 60)
         pos["dxrating"] = MaiPicPosition("Arial Black", 16, 980, 55)
-        pos["ratingDetail"] = MaiPicPosition("Source Han Sans CN Bold Bold", 20, 600, 124)
-        pos["chTitle"] = MaiPicPosition("FZYouH_513B", 24, 10, 28)
-        pos["chAchievements"] = MaiPicPosition("FZYouH_513B", 20, 10, 51)
-        pos["chBase"] = MaiPicPosition("FZYouH_513B", 20, 10, 71)
-        pos["chRank"] = MaiPicPosition("FZYouH_513B", 24, 10, 95)
+        pos["ratingDetail"] = MaiPicPosition("Microsoft YaHei", 20, 600, 124)
+        pos["chTitle"] = MaiPicPosition("Microsoft YaHei", 24, 10, 28)
+        pos["chAchievements"] = MaiPicPosition("Microsoft YaHei", 20, 10, 51)
+        pos["chBase"] = MaiPicPosition("Microsoft YaHei", 20, 10, 71)
+        pos["chRank"] = MaiPicPosition("Microsoft YaHei", 24, 10, 95)
         pos["label"] = MaiPicPosition(x = -21, y = 0, scale = 19.0 / 16)
         pos["rateIcon"] = MaiPicPosition(x = 110, y = 30, scale = 0.9)
         pos["fcIcon"] = MaiPicPosition(x = 160, y = 28, scale = 0.7)
