@@ -25,7 +25,7 @@ jobs:
         run: chmod -R 777 *
 
       - name: Init gradle project
-        run: ./gradlew clean --scan && ./gradlew init
+        run: ./gradlew clean --scan
 
       - name: Build
         run: ./gradlew buildPlugin
@@ -33,5 +33,5 @@ jobs:
       - name: Upload result
         uses: actions/upload-artifact@v2
         with:
-          name: OtomadBot
+          name: maimai-bot
           path: build/mirai/maimai-bot-*.jar
