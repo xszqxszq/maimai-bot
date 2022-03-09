@@ -1,5 +1,6 @@
 @file:Suppress("MemberVisibilityCanBePrivate")
 
+import MaimaiImage.resolveCover
 import com.soywiz.kds.iterators.fastForEach
 import com.soywiz.kmem.toIntFloor
 import com.soywiz.korim.bitmap.Bitmap
@@ -10,7 +11,6 @@ import com.soywiz.korim.bitmap.effect.applyEffect
 import com.soywiz.korim.bitmap.sliceWithSize
 import com.soywiz.korim.color.Colors
 import com.soywiz.korim.color.RGBA
-import com.soywiz.korim.font.FolderBasedNativeSystemFontProvider
 import com.soywiz.korim.font.TtfFont
 import com.soywiz.korim.format.PNG
 import com.soywiz.korim.format.encode
@@ -26,7 +26,6 @@ import com.soywiz.korio.net.mimeType
 import kotlinx.serialization.Serializable
 import net.mamoe.mirai.console.data.AutoSavePluginConfig
 import net.mamoe.mirai.console.data.value
-import MaimaiImage.resolveCover
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -38,7 +37,7 @@ object MaimaiImage {
     val fonts = mutableMapOf<String, TtfFont>()
     val imgDir = MaimaiBot.resolveDataFile("img").toVfs()
     val images = mutableMapOf<String, Bitmap>()
-    private val sysFonts = FolderBasedNativeSystemFontProvider()
+    private val sysFonts = MultiPlatformNativeSystemFontProvider()
     suspend fun generateBest(info: MaimaiPlayerData, b50: Boolean): ByteArray {
         val config = if (b50) MaimaiConfig.b50 else MaimaiConfig.b40
         val result = images[config.bg]!!.clone()
@@ -84,7 +83,7 @@ object MaimaiImage {
     }
     fun reloadFonts() {
         MaimaiConfig.b40.pos.filterNot { it.value.fontName.isBlank() }.forEach {
-            fonts[it.value.fontName] = sysFonts.locateFontByName(it.value.fontName)!!
+            fonts[it.value.fontName] = sysFonts.locateFontByName(it.value.fontName) ?: sysFonts.defaultFont()
         }
     }
 
@@ -290,47 +289,47 @@ object MaimaiConfig: AutoSavePluginConfig("maimai") {
     val b40 by value(
         MaimaiBestPicConfig(
             "b40_bg.png",
-            160, 16.0 / 9
-        ).apply {
-        pos["name"] = MaiPicPosition("Microsoft YaHei", 30, 84, 45)
-        pos["dxrating"] = MaiPicPosition("Arial Black", 16, 574, 39)
-        pos["ratingDetail"] = MaiPicPosition("Microsoft YaHei", 20, 225, 102)
-        pos["chTitle"] = MaiPicPosition("Microsoft YaHei", 18, 8, 22)
-        pos["chAchievements"] = MaiPicPosition("Microsoft YaHei", 16, 8, 44)
-        pos["chBase"] = MaiPicPosition("Microsoft YaHei", 16, 8, 60)
-        pos["chRank"] = MaiPicPosition("Microsoft YaHei", 18, 8, 80)
-        pos["label"] = MaiPicPosition(x = -19, y = 0, scale = 1.0)
-        pos["rateIcon"] = MaiPicPosition(x = 85, y = 25, scale = 0.8)
-        pos["fcIcon"] = MaiPicPosition(x = 130, y = 25, scale = 0.5)
-        pos["shadow"] = MaiPicPosition(x = 2, y = 2)
-        pos["leftPart"] = MaiPicPosition(x = 69, y = 210)
-        pos["rightPart"] = MaiPicPosition(x = 936, y = 210)
-        pos["ratingBg"] = MaiPicPosition(x = 451, y = 16)
-    })
+            160, 16.0 / 9,
+            buildMap {
+                put("name", MaiPicPosition("Source Han Sans CN Bold Bold", 30, 84, 45))
+                put("dxrating", MaiPicPosition("Arial Black", 16, 574, 39))
+                put("ratingDetail", MaiPicPosition("Source Han Sans CN Bold Bold", 20, 225, 102))
+                put("chTitle", MaiPicPosition("Source Han Sans CN Bold Bold", 18, 8, 22))
+                put("chAchievements", MaiPicPosition("Source Han Sans CN Bold Bold", 16, 8, 44))
+                put("chBase", MaiPicPosition("Source Han Sans CN Bold Bold", 16, 8, 60))
+                put("chRank", MaiPicPosition("Source Han Sans CN Bold Bold", 18, 8, 80))
+                put("label", MaiPicPosition(x = -19, y = 0, scale = 1.0))
+                put("rateIcon", MaiPicPosition(x = 93, y = 25, scale = 0.8))
+                put("fcIcon", MaiPicPosition(x = 138, y = 25, scale = 0.5))
+                put("shadow", MaiPicPosition(x = 2, y = 2))
+                put("leftPart", MaiPicPosition(x = 69, y = 210))
+                put("rightPart", MaiPicPosition(x = 936, y = 210))
+                put("ratingBg", MaiPicPosition(x = 451, y = 16))
+            }
+        ))
     val b50 by value(
         MaimaiBestPicConfig(
             "b50_bg.png",
-            190, 16.0 / 9
-        ).apply {
-        pos["name"] = MaiPicPosition("Microsoft YaHei", 30, 484, 60)
-        pos["dxrating"] = MaiPicPosition("Arial Black", 16, 980, 55)
-        pos["ratingDetail"] = MaiPicPosition("Microsoft YaHei", 20, 600, 124)
-        pos["chTitle"] = MaiPicPosition("Microsoft YaHei", 24, 10, 28)
-        pos["chAchievements"] = MaiPicPosition("Microsoft YaHei", 20, 10, 51)
-        pos["chBase"] = MaiPicPosition("Microsoft YaHei", 20, 10, 71)
-        pos["chRank"] = MaiPicPosition("Microsoft YaHei", 24, 10, 95)
-        pos["label"] = MaiPicPosition(x = -21, y = 0, scale = 19.0 / 16)
-        pos["rateIcon"] = MaiPicPosition(x = 110, y = 30, scale = 0.9)
-        pos["fcIcon"] = MaiPicPosition(x = 160, y = 28, scale = 0.7)
-        pos["shadow"] = MaiPicPosition(x = 4, y = 4)
-        pos["leftPart"] = MaiPicPosition(x = 10, y = 258)
-        pos["rightPart"] = MaiPicPosition(x = 1444, y = 258)
-        pos["ratingBg"] = MaiPicPosition(x = 858, y = 33)
-    })
+            190, 16.0 / 9,
+            buildMap {
+                put("name", MaiPicPosition("Source Han Sans CN Bold Bold", 30, 484, 60))
+                put("dxrating", MaiPicPosition("Arial Black", 16, 980, 55))
+                put("ratingDetail", MaiPicPosition("Source Han Sans CN Bold Bold", 20, 600, 124))
+                put("chTitle", MaiPicPosition("Source Han Sans CN Bold Bold", 24, 10, 28))
+                put("chAchievements", MaiPicPosition("Source Han Sans CN Bold Bold", 18, 10, 53))
+                put("chBase", MaiPicPosition("Source Han Sans CN Bold Bold", 18, 10, 71))
+                put("chRank", MaiPicPosition("Source Han Sans CN Bold Bold", 22, 10, 95))
+                put("label", MaiPicPosition(x = -21, y = 0, scale = 19.0 / 16))
+                put("rateIcon", MaiPicPosition(x = 110, y = 32, scale = 0.9))
+                put("fcIcon", MaiPicPosition(x = 160, y = 30, scale = 0.7))
+                put("shadow", MaiPicPosition(x = 4, y = 4))
+                put("leftPart", MaiPicPosition(x = 10, y = 258))
+                put("rightPart", MaiPicPosition(x = 1444, y = 258))
+                put("ratingBg", MaiPicPosition(x = 858, y = 33))
+            }
+        )
+    )
 }
 @Serializable
-class MaimaiBestPicConfig(
-    val bg: String, val coverWidth: Int, val coverRatio: Double
-) {
-    val pos = mutableMapOf<String, MaiPicPosition>()
-}
+class MaimaiBestPicConfig(val bg: String, val coverWidth: Int, val coverRatio: Double,
+                          val pos: Map<String, MaiPicPosition>)

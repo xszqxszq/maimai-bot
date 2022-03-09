@@ -4,10 +4,8 @@ import com.github.doyaaaaaken.kotlincsv.dsl.csvReader
 import com.soywiz.kds.iterators.fastForEach
 import com.soywiz.kds.iterators.fastForEachWithIndex
 import com.soywiz.kds.mapDouble
-import com.soywiz.korio.file.VfsFile
-import com.soywiz.korio.file.baseName
-import com.soywiz.korio.file.std.openAsZip
 import com.soywiz.korio.file.std.toVfs
+import com.soywiz.korio.file.writeToFile
 import com.soywiz.korio.lang.substr
 import io.ktor.http.*
 import kotlinx.coroutines.launch
@@ -23,6 +21,11 @@ import net.mamoe.mirai.message.data.PlainText
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
 import net.mamoe.mirai.utils.info
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.Paths
+import kotlin.io.path.isRegularFile
+import kotlin.io.path.name
 
 
 object MaimaiBot : KotlinPlugin(
@@ -36,7 +39,7 @@ object MaimaiBot : KotlinPlugin(
 ) {
     var musics = arrayOf<MaimaiMusicInfo>()
     var aliases = mutableMapOf<String, List<String>>()
-    private val resourcesDataDirs = listOf("img")
+    private val resourcesDataDirs = listOf("img", "font")
     private const val resourcesConfDir = "config"
     private val denied by lazy {
         PermissionService.INSTANCE.register(
@@ -146,36 +149,35 @@ object MaimaiBot : KotlinPlugin(
         }
     }
     private suspend fun extractResources() {
-        // TODO: Switch back to the normal approach. This is only a TEMPORARY solution
-        val jar = (resolveConfigFile("../../plugins/")).toVfs().listSimple()
-            .find { it.baseName.startsWith("maimai-bot") }!!.openAsZip()
-        resourcesDataDirs.fastForEach { dir -> extractResourceDir(jar, dir) }
-        extractResourceDir(jar, resourcesConfDir, true)
+        resourcesDataDirs.fastForEach { dir -> extractResourceDir(dir) }
+        extractResourceDir(resourcesConfDir, true)
     }
-    private suspend fun extractResourceDir(jar: VfsFile, dir: String, isConfig: Boolean = false) {
+    private suspend fun extractResourceDir(dir: String, isConfig: Boolean = false) {
         val now = (if (isConfig) MaimaiBot.resolveConfigFile("") else MaimaiBot.resolveDataFile(dir)).toVfs()
-        if (now.isFile())
+        if (!now.isDirectory())
             now.delete()
         now.mkdir()
-//        getResourceAsStream(dir)?.reader()?.readLines()?.fastForEach {
-//            runCatching {
-//                val target = now[it]
-//                if (!target.exists())
-//                    getResourceAsStream("$dir/$it")!!.readBytes().writeToFile(target)
-//            }.onFailure { e ->
-//                e.printStackTrace()
-//            }
-//        }
-        // TODO: Fix code above. This is only a TEMPORARY solution
-        jar[dir].list().collect {
-            runCatching {
-                val target = now[it.baseName]
-                if (!target.exists())
-                    it.copyTo(target)
-            }.onFailure { e ->
-                e.printStackTrace()
+        getResourceFileList(dir).fastForEach {
+            val target = now[it]
+            if (!target.exists())
+                getResourceAsStream("$dir/$it")!!.readBytes().writeToFile(target)
+        }
+    }
+    private fun getResourceFileList(path: String): List<String> {
+        val result = mutableListOf<String>()
+        javaClass.getResource("/$path") ?.let {
+            val uri = it.toURI()
+            kotlin.runCatching {
+                FileSystems.newFileSystem(uri, buildMap {
+                    put("create", "true")
+                })
+            }.onFailure {}
+            Files.walk(Paths.get(uri)).forEach { file ->
+                if (file.isRegularFile())
+                    result.add(file.name)
             }
         }
+        return result
     }
 
     private suspend fun queryBest(type: String = "qq", id: String, b50: Boolean, event: MessageEvent) = event.run {

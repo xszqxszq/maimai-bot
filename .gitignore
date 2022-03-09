@@ -120,6 +120,7 @@ run/
 
 # Local Test Launch point
 src/test/kotlin
+debug-sandbox
 
 # Mirai console files with direct bootstrap
 /config
