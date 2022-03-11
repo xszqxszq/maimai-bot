@@ -17,7 +17,6 @@ import net.mamoe.mirai.event.GlobalEventChannel
 import net.mamoe.mirai.event.events.MessageEvent
 import net.mamoe.mirai.event.subscribeMessages
 import net.mamoe.mirai.message.data.MessageChainBuilder
-import net.mamoe.mirai.message.data.PlainText
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
 import net.mamoe.mirai.utils.info
@@ -114,7 +113,12 @@ object MaimaiBot : KotlinPlugin(
                             searchByDS(args.first()..args.last(), this)
                     }
                 }
-
+                startsWith("分数线") { rawArgs ->
+                    notDenied(denied) {
+                        val args = rawArgs.toArgsList()
+                        getScoreRequirements(args, this)
+                    }
+                }
             }
             arrayOf("绿", "黄", "红", "紫", "白").fastForEachWithIndex { difficulty, str ->
                 GlobalEventChannel.subscribeMessages {
@@ -210,14 +214,14 @@ object MaimaiBot : KotlinPlugin(
                 }
             }
             result.add("\n等级: ${selected.level[difficulty]} (${selected.ds[difficulty]})")
-            result.add("\nTAP: ${chart.notes[0]}\nHOLD: ${chart.notes[1]}")
-            result.add("\nSLIDE: ${chart.notes[2]}")
-            if (chart.notes.size == 5) // Interesting api lol
-                result.add("\nTOUCH: ${chart.notes[3]}\nBREAK: ${chart.notes[4]}")
-            else
-                result.add("\nBREAK: ${chart.notes[3]}")
-            if (chart.charter != "-")
-                result.add("\n谱师：${chart.charter}")
+            MaimaiChartNotes.fromList(chart.notes) ?.let { notes ->
+                result.add("\nTAP: ${notes.tap}\nHOLD: ${notes.hold}")
+                result.add("\nSLIDE: ${notes.slide}")
+                notes.touch ?.let { touch -> result.add("\nTOUCH: $touch") }
+                result.add("\nBREAK: ${notes.break_}")
+                if (chart.charter != "-")
+                    result.add("\n谱师：${chart.charter}")
+            }
             quoteReply(result.build())
         }
     }
@@ -286,6 +290,58 @@ object MaimaiBot : KotlinPlugin(
             quoteReply(getMusicInfoForSend(it, this).build())
         } ?: run {
             quoteReply("没有这样的乐曲。")
+        }
+    }
+    private suspend fun getScoreRequirements(args: List<String>, event: MessageEvent) = event.run {
+        when {
+            args.size == 2 && args[1].toDoubleOrNull() != null && (args[1].toDouble() in 0.0..101.0) -> {
+                when (args[0][0]) {
+                    '绿' -> 0
+                    '黄' -> 1
+                    '红' -> 2
+                    '紫' -> 3
+                    '白' -> 4
+                    else -> null
+                } ?.let { difficulty ->
+                    args[0].filter { it.isDigit() }.toIntOrNull() ?.let { id ->
+                        musics.find { it.id == id.toString() && it.level.size > difficulty } ?.let { target ->
+                            val line = args[1].toDouble()
+                            val notes = MaimaiChartNotes.fromList(target.charts[difficulty].notes)!!
+                            val totalScore = notes.tap * 500.0 + notes.hold * 1000 + notes.slide * 1500 +
+                                    (notes.touch ?: 0) * 500 + notes.break_ * 2500
+                            val breakBonus = 0.01 / notes.break_
+                            val break50Reduce = totalScore * breakBonus / 4
+                            val reduce = 101.0 - line
+                            quoteReply("[${args[0][0]}] ${target.title}\n" +
+                                    "分数线 $line% 允许的最多 TAP GREAT 数量为 " +
+                                    String.format("%.2f", totalScore * reduce / 10000) +
+                                    " (每个 -" + String.format("%.4f", 10000.0 / totalScore) + "%),\n" +
+                                    "BREAK 50落 (一共 ${notes.break_} 个) 等价于 " +
+                                    String.format("%.3f", break50Reduce / 100) + " 个 TAP GREAT " +
+                                    "(-" + String.format("%.4f", break50Reduce / totalScore * 100) + "%)")
+                        } ?: run {
+                            quoteReply("未找到该谱面。请输入“分数线 帮助”查看使用说明。")
+                        }
+                    }
+                } ?: run {
+                    quoteReply("格式错误，请输入“分数线 帮助”查看使用说明。")
+                }
+            }
+            args.size == 1 && args.first() in listOf("帮助", "help") ->
+                quoteReply(
+                    "此功能为查找某首歌分数线设计。\n" +
+                            "命令格式：分数线 <难度+歌曲id> <分数线>\n" +
+                            "例如：分数线 紫379 100.5\n" +
+                            "命令将返回分数线允许的 TAP GREAT 容错以及 BREAK 50落等价的 TAP GREAT 数。\n" +
+                            "以下为 TAP GREAT 的对应表：\n" +
+                            "GREAT/GOOD/MISS\n" +
+                            "TAP   1/2.5/5\n" +
+                            "HOLD  2/5/10\n" +
+                            "SLIDE 3/7/15\n" +
+                            "TOUCH 1/2/5\n" +
+                            "BREAK 5/12.5/25(外加200落)"
+                )
+            else -> quoteReply("格式错误，请输入“分数线 帮助”查看使用说明。")
         }
     }
     private suspend fun getMusicInfoForSend(

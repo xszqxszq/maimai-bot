@@ -48,6 +48,16 @@ data class MaimaiChartInfo(val notes: List<Int>, val charter: String)
 @Serializable
 data class MaimaiMusicBasicInfo(val title: String, val artist: String, val genre: String, val bpm: Int,
                                 val release_date: String, val from: String, val is_new: Boolean)
+@Serializable
+data class MaimaiChartNotes(val tap: Int, val hold: Int, val slide: Int, val break_: Int, val touch: Int ?= null) {
+    companion object {
+        fun fromList(notes: List<Int>): MaimaiChartNotes? = when (notes.size) {
+            4 -> MaimaiChartNotes(notes[0], notes[1], notes[2], notes[3], null)
+            5 -> MaimaiChartNotes(notes[0], notes[1], notes[2], notes[4], notes[3]) // Interesting result array
+            else -> null
+        }
+    }
+}
 
 object DXProberApi {
     private const val site = "https://www.diving-fish.com"
