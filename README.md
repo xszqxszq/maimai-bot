@@ -4,7 +4,7 @@
 
 ## 使用指南
 
-[点我下载](https://github.com/xszqxszq/maimai-bot/releases/download/v1.0/maimai-bot-1.0.mirai.jar)
+[点我下载](https://github.com/xszqxszq/maimai-bot/releases/download/v1.1/maimai-bot-1.1.mirai.jar)
 
 本插件开箱即用，只需和其他插件一样放入 [MCL](https://github.com/iTXTech/mcl-installer) 或其他版本的 Mirai 控制台 的 ```plugins``` 目录即可。
 
@@ -19,6 +19,7 @@
 * 谱面详情（例：紫id11154）
 * 随机歌曲（例：随个紫12+）
 * 定数查歌
+* 分数线
 
 ## 常见问题
 
@@ -29,3 +30,7 @@
 #### 如何更新歌曲别名？
 
 本项目内置的别名来自 [歌曲别名添加表](https://docs.qq.com/sheet/DWGNNYUdTT01PY2N1) ，如果需要更新，则需要切换到“现有歌曲别名表”并点击右上角，导出为→csv并保存到 ```config/xyz.xszq.maimai-bot/aliases.csv```
+
+#### 查不到任何歌曲谱面信息？
+
+请检查 [舞萌 DX 查分器](https://www.diving-fish.com/maimaidx/prober) 是否可以访问，同时请检查您的网络连接是否畅通，是否开启了无效的代理设置等。
