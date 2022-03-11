@@ -255,7 +255,9 @@ object MaimaiBot : KotlinPlugin(
                 result.add("您要找的歌曲可能是：\n")
                 quoteReply(getMusicInfoForSend(selected, this, result).build())
             }
-            else -> {}
+            else -> {
+                quoteReply("未找到歌曲。如果要按名称搜索，请使用如下命令：\n\t查歌 歌曲名称")
+            }
         }
     }
     private suspend fun searchByDS(range: ClosedFloatingPointRange<Double>, event: MessageEvent) = event.run {
@@ -281,14 +283,7 @@ object MaimaiBot : KotlinPlugin(
                     || (level == "" && it.level.size > difficulty)
                     || (difficulty == -1 && level in it.level)}.randomOrNull()
         selected ?.let {
-            val result = MessageChainBuilder()
-            result.add(PlainText("${selected.id}. ${selected.title}\n"))
-            MaimaiImage.resolveCoverFileOrNull(selected.id) ?.let {
-                it.toExternalResource().use { png ->
-                    result.add(png.uploadAsImage(subject))
-                }
-            }
-            quoteReply(result.build())
+            quoteReply(getMusicInfoForSend(it, this).build())
         } ?: run {
             quoteReply("没有这样的乐曲。")
         }
