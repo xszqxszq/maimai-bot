@@ -43,6 +43,7 @@ object GuessGame {
                 }
                 val options = if (MaimaiImage.resolveCoverFileOrNull(selected.id) == null) 6 else 7
                 ansList.replaceAll { it.lowercase() }
+                println(ansList)
                 coroutineScope {
                     var finished = false
                     launch {
@@ -62,6 +63,8 @@ object GuessGame {
                         }
                         last.add("\n30秒后将揭晓答案哦~")
                         delay(5000)
+                        if (finished)
+                            return@launch
                         group.sendMessage(last.build())
                         delay(30000)
                     }
@@ -69,6 +72,7 @@ object GuessGame {
                         kotlin.runCatching {
                             val answer = nextMessageEvent(expectedFinishAfter) {
                                 ansList.any { ans ->
+                                    ans == message.content.lowercase() ||
                                     ans in message.content.lowercase()
                                             || (message.content.length >= 5 && message.content.lowercase() in ans)
                                 }

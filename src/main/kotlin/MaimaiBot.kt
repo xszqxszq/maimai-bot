@@ -7,6 +7,7 @@ import com.soywiz.kds.mapDouble
 import com.soywiz.korio.file.std.toVfs
 import com.soywiz.korio.file.writeToFile
 import com.soywiz.korio.lang.substr
+import com.soywiz.korio.util.toStringDecimal
 import io.ktor.http.*
 import kotlinx.coroutines.launch
 import net.mamoe.mirai.console.permission.PermissionId
@@ -258,6 +259,8 @@ object MaimaiBot : KotlinPlugin(
                 result.add("\nBREAK: ${notes.break_}")
                 if (chart.charter != "-")
                     result.add("\n谱师：${chart.charter}")
+                result.add("\n难易度：${stats[id]!![difficulty].tag}")
+                result.add("\n平均达成率：${stats[id]!![difficulty].avg!!.toStringDecimal(2)}%")
             }
             quoteReply(result.build())
         }
