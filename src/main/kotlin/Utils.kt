@@ -12,17 +12,22 @@ import com.soywiz.korio.file.baseName
 import com.soywiz.korio.file.std.localVfs
 import com.soywiz.korio.lang.Environment
 import com.soywiz.korio.lang.expand
+import kotlinx.coroutines.withTimeout
 import net.mamoe.mirai.console.permission.Permission
 import net.mamoe.mirai.console.permission.PermissionService.Companion.hasPermission
 import net.mamoe.mirai.console.permission.PermitteeId.Companion.permitteeId
 import net.mamoe.mirai.contact.Contact
+import net.mamoe.mirai.event.EventPriority
+import net.mamoe.mirai.event.GlobalEventChannel
 import net.mamoe.mirai.event.events.FriendMessageEvent
 import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.event.events.MessageEvent
+import net.mamoe.mirai.event.syncFromEvent
 import net.mamoe.mirai.message.MessageReceipt
 import net.mamoe.mirai.message.data.Message
 import net.mamoe.mirai.message.data.MessageSource.Key.quote
 import net.mamoe.mirai.message.data.toPlainText
+import net.mamoe.mirai.message.isContextIdenticalWith
 import net.mamoe.mirai.utils.ExternalResource
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 
@@ -43,6 +48,43 @@ suspend fun <T> MessageEvent.notDenied(permission: Permission, block: suspend ()
     else -> null
 }
 
+@PublishedApi // inline, safe to remove in the future
+internal inline fun <reified P : MessageEvent>
+        P.createMapper(crossinline filter: suspend P.(P) -> Boolean): suspend (P) -> P? =
+    mapper@{ event ->
+        if (!event.isContextIdenticalWith(this)) return@mapper null
+        if (!filter(event, event)) return@mapper null
+        event
+    }
+@PublishedApi // inline, safe to remove in the future
+internal inline fun <reified P : MessageEvent>
+        P.createMapperForGroup(crossinline filter: suspend P.(P) -> Boolean): suspend (P) -> P? =
+    mapper@{ event ->
+        if (event !is GroupMessageEvent) return@mapper null
+        if (!event.isGroupIdenticalWith(this as GroupMessageEvent)) return@mapper null
+        if (!filter(event, event)) return@mapper null
+        event
+    }
+@JvmSynthetic
+suspend inline fun <reified P : MessageEvent> P.nextMessageEvent(
+    timeoutMillis: Long = -1,
+    priority: EventPriority = EventPriority.MONITOR,
+    noinline filter: suspend P.(P) -> Boolean = { true }
+): MessageEvent {
+    val mapper: suspend (P) -> P? = createMapper(filter)
+
+    return (if (timeoutMillis == -1L) {
+        GlobalEventChannel.syncFromEvent(priority, mapper)
+    } else {
+        withTimeout(timeoutMillis) {
+            GlobalEventChannel.syncFromEvent(priority, mapper)
+        }
+    })
+}
+fun GroupMessageEvent.isGroupIdenticalWith(another: GroupMessageEvent): Boolean {
+    return this.group == another.group
+}
+
 suspend fun MessageEvent.quoteReply(message: Message): MessageReceipt<Contact> =
     this.subject.sendMessage(this.message.quote() + message)
 suspend fun MessageEvent.quoteReply(message: String): MessageReceipt<Contact> = quoteReply(message.toPlainText())
@@ -59,6 +101,7 @@ private val macosFolders get() = listOf("/System/Library/Fonts/", "/Library/Font
 private val iosFolders get() = listOf("/System/Library/Fonts/Cache", "/System/Library/Fonts")
 private val androidFolders get() = listOf("/system/Fonts", "/system/font", "/data/fonts")
 
+// TODO: Remove this after korim fixed the bug
 open class MultiPlatformNativeSystemFontProvider(
     private val folders: List<String> = linuxFolders + windowsFolders + macosFolders + androidFolders + iosFolders
             + listOf(MaimaiBot.resolveDataFile("font").absolutePath),

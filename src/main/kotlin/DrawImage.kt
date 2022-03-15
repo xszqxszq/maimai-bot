@@ -136,6 +136,15 @@ object MaimaiImage {
             }
         }
     }
+    fun name2Difficulty(name: Char): Int? =
+        when (name) {
+            '绿' -> 0
+            '黄' -> 1
+            '红' -> 2
+            '紫' -> 3
+            '白' -> 4
+            else -> null
+        }
     fun getNewRa(ds: Double, achievement: Double): Int {
         val baseRa = when (achievement) {
             in 0.0..49.9999 ->  7.0
@@ -283,6 +292,8 @@ fun Bitmap32.brightness(ratio: Float = 0.6f): Bitmap32 {
     }
     return this
 }
+fun Bitmap.randomSlice(size: Int = 66) =
+    sliceWithSize((0..width - size).random(), (0..height - size).random(), size, size).extract()
 
 
 object MaimaiConfig: AutoSavePluginConfig("maimai") {

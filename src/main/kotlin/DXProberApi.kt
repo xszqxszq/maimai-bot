@@ -1,6 +1,6 @@
 @file:Suppress("unused")
 
-import com.soywiz.kds.iterators.fastForEach
+import MaimaiImage.imgDir
 import com.soywiz.korio.async.launch
 import com.soywiz.korio.file.writeToFile
 import io.ktor.client.*
@@ -18,7 +18,6 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import MaimaiImage.imgDir
 
 
 @Serializable
@@ -58,6 +57,11 @@ data class MaimaiChartNotes(val tap: Int, val hold: Int, val slide: Int, val bre
         }
     }
 }
+@Serializable
+data class MaimaiChartStat(
+    val count: Int ?= null, val avg: Double ?= null, val sssp_count: Int ?= null, val tag: String ?= null,
+    val v: Int ?= null, val t: Int ?= null
+)
 
 object DXProberApi {
     private const val site = "https://www.diving-fish.com"
@@ -84,7 +88,7 @@ object DXProberApi {
         var cnt = 0
         val semaphore = Semaphore(32)
         coroutineScope {
-            MaimaiBot.musics.fastForEach {
+            MaimaiBot.musics.values.forEach {
                 val target = covers["${it.id}.jpg"]
                 if (!target.exists()) {
                     launch {
@@ -121,5 +125,13 @@ object DXProberApi {
                 if (result.status == HttpStatusCode.OK) json.decodeFromString(result.readText()) else null)
         }
         return Pair(HttpStatusCode.BadGateway, null)
+    }
+    suspend fun getChartStat(): Map<String, List<MaimaiChartStat>> {
+        kotlin.runCatching {
+            return client.get("$site/api/maimaidxprober/chart_stats")
+        }.onFailure {
+            it.printStackTrace()
+        }
+        return mapOf()
     }
 }
