@@ -32,8 +32,6 @@ object GuessGame {
                 quoteReply("请各位发挥自己的聪明才智，根据我的提示来猜一猜这是哪一首歌曲吧！\n" +
                         "作答时，歌曲 id、歌曲标题（请尽量回答完整）、歌曲别名都将被视作有效答案哦~\n" +
                         "(致管理员：您可以使用“猜歌设置”指令开启或者关闭本群的猜歌功能)")
-                println(selected.title)
-                println(getDescriptions(selected, stat))
                 val descriptions = getDescriptions(selected, stat).shuffled().take(6)
                 val ansList = mutableListOf(selected.id, selected.title)
                 MaimaiBot.aliases[selected.title] ?.let { ansList.addAll(it) }
@@ -43,7 +41,6 @@ object GuessGame {
                 }
                 val options = if (MaimaiImage.resolveCoverFileOrNull(selected.id) == null) 6 else 7
                 ansList.replaceAll { it.lowercase() }
-                println(ansList)
                 coroutineScope {
                     var finished = false
                     launch {
