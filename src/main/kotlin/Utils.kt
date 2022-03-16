@@ -50,14 +50,6 @@ suspend fun <T> MessageEvent.notDenied(permission: Permission, block: suspend ()
 
 @PublishedApi // inline, safe to remove in the future
 internal inline fun <reified P : MessageEvent>
-        P.createMapper(crossinline filter: suspend P.(P) -> Boolean): suspend (P) -> P? =
-    mapper@{ event ->
-        if (!event.isContextIdenticalWith(this)) return@mapper null
-        if (!filter(event, event)) return@mapper null
-        event
-    }
-@PublishedApi // inline, safe to remove in the future
-internal inline fun <reified P : MessageEvent>
         P.createMapperForGroup(crossinline filter: suspend P.(P) -> Boolean): suspend (P) -> P? =
     mapper@{ event ->
         if (event !is GroupMessageEvent) return@mapper null
@@ -71,7 +63,7 @@ suspend inline fun <reified P : MessageEvent> P.nextMessageEvent(
     priority: EventPriority = EventPriority.MONITOR,
     noinline filter: suspend P.(P) -> Boolean = { true }
 ): MessageEvent {
-    val mapper: suspend (P) -> P? = createMapper(filter)
+    val mapper: suspend (P) -> P? = createMapperForGroup(filter)
 
     return (if (timeoutMillis == -1L) {
         GlobalEventChannel.syncFromEvent(priority, mapper)
