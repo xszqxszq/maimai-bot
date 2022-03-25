@@ -1,3 +1,5 @@
+package xyz.xszq
+
 import com.soywiz.korim.format.PNG
 import com.soywiz.korim.format.encode
 import kotlinx.coroutines.coroutineScope
@@ -8,10 +10,12 @@ import net.mamoe.mirai.message.data.MessageChainBuilder
 import net.mamoe.mirai.message.data.content
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
+import java.util.Collections.synchronizedMap
 
 object GuessGame {
-    private val guessStart = mutableMapOf<Long, Long>()
-    private const val expectedFinishAfter = 65 * 1000L
+    private val guessStart = synchronizedMap(mutableMapOf<Long, Long>())
+    private var cooldown = 5000L
+    private var expectedFinishAfter = (7 * cooldown + 30000L)
     private fun isFinished(group: Long) = guessStart[group]?.let {
         if (System.currentTimeMillis() - it > expectedFinishAfter) {
             reset(group) // Prevent unavailable after exception
@@ -45,7 +49,7 @@ object GuessGame {
                     var finished = false
                     launch {
                         descriptions.forEachIndexed { index, desc ->
-                            delay(5000)
+                            delay(cooldown)
                             if (finished)
                                 return@launch
                             group.sendMessage("${index + 1}/$options. 这首歌$desc")
@@ -59,11 +63,11 @@ object GuessGame {
                                 }
                         }
                         last.add("\n30秒后将揭晓答案哦~")
-                        delay(5000)
+                        delay(cooldown)
                         if (finished)
                             return@launch
                         group.sendMessage(last.build())
-                        delay(30000)
+                        delay(30000L)
                     }
                     launch {
                         kotlin.runCatching {

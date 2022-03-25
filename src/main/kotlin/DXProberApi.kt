@@ -1,6 +1,8 @@
 @file:Suppress("unused")
 
-import MaimaiImage.imgDir
+package xyz.xszq
+
+import xyz.xszq.MaimaiImage.imgDir
 import com.soywiz.korio.async.launch
 import com.soywiz.korio.file.writeToFile
 import io.ktor.client.*
@@ -68,9 +70,12 @@ object DXProberApi {
     private val json = Json { isLenient = true; ignoreUnknownKeys = true }
     private val client = HttpClient(OkHttp) {
         install(JsonFeature) {
-            serializer = KotlinxSerializer()
+            serializer = KotlinxSerializer(kotlinx.serialization.json.Json {
+                prettyPrint = true
+                isLenient = true
+            })
         }
-
+        expectSuccess = false
     }
     suspend fun getMusicList(): Array<MaimaiMusicInfo> {
         kotlin.runCatching {
@@ -94,9 +99,12 @@ object DXProberApi {
                     launch {
                         semaphore.withPermit {
                             kotlin.runCatching {
-                                client.get<ByteArray>("$site/covers/${it.id}.jpg").writeToFile(target)
-                                cnt ++
-                                MaimaiBot.logger.info("${it.id}. ${it.title} 封面下载完成")
+                                val response = client.get<HttpResponse>("$site/covers/${it.id}.jpg")
+                                if (response.status == HttpStatusCode.OK) {
+                                    response.readBytes().writeToFile(target)
+                                    cnt ++
+                                    MaimaiBot.logger.info("${it.id}. ${it.title} 封面下载完成")
+                                }
                             }.onFailure { e ->
                                 MaimaiBot.logger.verbose(e.stackTraceToString())
                             }
@@ -116,6 +124,7 @@ object DXProberApi {
             if (b50)
                 put("b50", true)
         }
+        println(payload)
         kotlin.runCatching {
             val result: HttpResponse = client.post("$site/api/maimaidxprober/query/player") {
                 contentType(ContentType.Application.Json)
@@ -123,6 +132,8 @@ object DXProberApi {
             }
             return Pair(result.status,
                 if (result.status == HttpStatusCode.OK) json.decodeFromString(result.readText()) else null)
+        }.onFailure {
+            return Pair(HttpStatusCode.BadGateway, null)
         }
         return Pair(HttpStatusCode.BadGateway, null)
     }

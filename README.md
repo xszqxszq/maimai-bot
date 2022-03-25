@@ -1,4 +1,4 @@
-# maimai-bot
+# maimaiBot
 
 一个基于 [mirai](https://github.com/mamoe/mirai) 和 [舞萌 DX 查分器](https://www.diving-fish.com/maimaidx/prober) 编写的 maimai DX QQ 机器人插件。
 
@@ -26,11 +26,11 @@
 
 #### 如何修改字体？
 
-修改 ```config/xyz.xszq.maimai-bot/config.yml``` 中的 ```fontName```值即可。
+修改 ```config/xyz.xszq.maimaiBot/config.yml``` 中的 ```fontName```值即可。
 
 #### 如何更新歌曲别名？
 
-本项目内置的别名来自 [歌曲别名添加表](https://docs.qq.com/sheet/DWGNNYUdTT01PY2N1) ，如果需要更新，则需要切换到“现有歌曲别名表”并点击右上角，导出为→csv并保存到 ```config/xyz.xszq.maimai-bot/aliases.csv```
+本项目内置的别名来自 [歌曲别名添加表](https://docs.qq.com/sheet/DWGNNYUdTT01PY2N1) ，如果需要更新，则需要切换到“现有歌曲别名表”并点击右上角，导出为→csv并保存到 ```config/xyz.xszq.maimaiBot/aliases.csv```
 
 #### 查不到任何歌曲谱面信息？
 

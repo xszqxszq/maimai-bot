@@ -1,3 +1,5 @@
+package xyz.xszq
+
 import com.soywiz.kds.atomic.kdsFreeze
 import com.soywiz.klock.measureTime
 import com.soywiz.klock.measureTimeWithResult
@@ -27,7 +29,6 @@ import net.mamoe.mirai.message.MessageReceipt
 import net.mamoe.mirai.message.data.Message
 import net.mamoe.mirai.message.data.MessageSource.Key.quote
 import net.mamoe.mirai.message.data.toPlainText
-import net.mamoe.mirai.message.isContextIdenticalWith
 import net.mamoe.mirai.utils.ExternalResource
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 
@@ -131,7 +132,7 @@ open class MultiPlatformNativeSystemFontProvider(
                             fileNamesToName.getOrPut(f.baseName) { "" }
                         }
                     }
-                } catch (e: Throwable) {
+                } catch (_: Throwable) {
                 }
             }
             val newFontCacheVfsFileText = fileNamesToName.map { "${it.key}=${it.value}" }.joinToString("\n")

@@ -1,6 +1,8 @@
 @file:Suppress("MemberVisibilityCanBePrivate")
 
-import MaimaiImage.resolveCover
+package xyz.xszq
+
+import xyz.xszq.MaimaiImage.resolveCover
 import com.soywiz.kds.iterators.fastForEach
 import com.soywiz.kmem.toIntFloor
 import com.soywiz.korim.bitmap.Bitmap

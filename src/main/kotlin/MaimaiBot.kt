@@ -1,5 +1,7 @@
 @file:Suppress("SpellCheckingInspection", "MemberVisibilityCanBePrivate")
 
+package xyz.xszq
+
 import com.github.doyaaaaaken.kotlincsv.dsl.csvReader
 import com.soywiz.kds.iterators.fastForEach
 import com.soywiz.kds.iterators.fastForEachWithIndex
@@ -32,7 +34,6 @@ import java.nio.file.Paths
 import kotlin.io.path.isRegularFile
 import kotlin.io.path.name
 
-
 object MaimaiBot : KotlinPlugin(
     JvmPluginDescription(
         id = "xyz.xszq.maimai-bot",
@@ -50,11 +51,11 @@ object MaimaiBot : KotlinPlugin(
     private const val resourcesConfDir = "config"
     private val denied by lazy {
         PermissionService.INSTANCE.register(
-            PermissionId("maimai-bot", "denyall"), "禁用 maimai-bot 的所有功能")
+            PermissionId("maimaiBot", "denyall"), "禁用 maimai-bot 的所有功能")
     }
     private val deniedGuess by lazy {
         PermissionService.INSTANCE.register(
-            PermissionId("maimai-bot", "guess"), "禁用 maimai-bot 的所有功能")
+            PermissionId("maimaiBot", "guess"), "禁用 maimai-bot 的所有功能")
     }
     override fun onEnable() {
         launch {
@@ -208,7 +209,7 @@ object MaimaiBot : KotlinPlugin(
         javaClass.getResource("/$path") ?.let {
             val uri = it.toURI()
             kotlin.runCatching {
-                FileSystems.newFileSystem(uri, buildMap {
+                FileSystems.newFileSystem(uri, buildMap<String, String> {
                     put("create", "true")
                 })
             }.onFailure {}

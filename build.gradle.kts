@@ -5,12 +5,12 @@ plugins {
     kotlin("jvm") version kotlinVersion
     kotlin("plugin.serialization") version kotlinVersion
 
-    id("net.mamoe.mirai-console") version "2.10.0"
+    id("net.mamoe.mirai-console") version "2.11.0-M1"
 }
 
 group = "xyz.xszq"
 version = "1.2"
-val korlibsVersion = "2.5.2"
+val korlibsVersion = "2.6.2"
 val ktorVersion = "1.6.7"
 
 repositories {
