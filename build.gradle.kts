@@ -9,9 +9,9 @@ plugins {
 }
 
 group = "xyz.xszq"
-version = "1.2"
-val korlibsVersion = "2.6.2"
-val ktorVersion = "1.6.7"
+version = "1.2.1"
+val korlibsVersion = "2.7.0"
+val ktorVersion = "1.6.8"
 
 repositories {
     maven("https://maven.aliyun.com/repository/public")
