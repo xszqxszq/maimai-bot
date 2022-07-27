@@ -14,7 +14,7 @@ val korlibsVersion = "2.7.0"
 val ktorVersion = "1.6.8"
 
 repositories {
-    maven("https://maven.aliyun.com/repository/public")
+// maven("https://maven.aliyun.com/repository/public")
     mavenCentral()
 }
 
