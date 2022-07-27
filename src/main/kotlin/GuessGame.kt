@@ -32,16 +32,17 @@ object GuessGame {
         } else {
             setStart(group.id)
             getRandomHot() ?.let { selected ->
-                val stat = MaimaiBot.stats[selected.id]!!
+                val stat = MaimaiBotSharedData.stats[selected.id]!!
                 quoteReply("请各位发挥自己的聪明才智，根据我的提示来猜一猜这是哪一首歌曲吧！\n" +
                         "作答时，歌曲 id、歌曲标题（请尽量回答完整）、歌曲别名都将被视作有效答案哦~\n" +
                         "(致管理员：您可以使用“猜歌设置”指令开启或者关闭本群的猜歌功能)")
                 val descriptions = getDescriptions(selected, stat).shuffled().take(6)
                 val ansList = mutableListOf(selected.id, selected.title)
-                MaimaiBot.aliases[selected.title] ?.let { ansList.addAll(it) }
-                if (selected.type == "SD" && MaimaiBot.musics.containsKey("10" + selected.id)) {
-                    ansList.add("10" + selected.id)
-                    MaimaiBot.aliases[MaimaiBot.musics["10" + selected.id]!!.title] ?.let { ansList.addAll(it) }
+                MaimaiBotSharedData.aliases[selected.title] ?.let { ansList.addAll(it) }
+                if (selected.type == "SD" && MaimaiBotSharedData.musics.containsKey(selected.id.toDXId())) {
+                    ansList.add(selected.id.toDXId())
+                    MaimaiBotSharedData.aliases[MaimaiBotSharedData.musics[selected.id.toDXId()]!!.title]
+                        ?.let { ansList.addAll(it) }
                 }
                 val options = if (MaimaiImage.resolveCoverFileOrNull(selected.id) == null) 6 else 7
                 ansList.replaceAll { it.lowercase() }
@@ -96,7 +97,8 @@ object GuessGame {
             }
         }
     }
-    private fun getRandomHot() = MaimaiBot.musics.getOrDefault(MaimaiBot.hotList.randomOrNull(), null)
+    private fun getRandomHot() = MaimaiBotSharedData.musics
+        .getOrDefault(MaimaiBotSharedData.hotList.randomOrNull(), null)
     private fun getDescriptions(song: MaimaiMusicInfo, stat: List<MaimaiChartStat>) = listOf(
         "的版本为 ${song.basic_info.from}${if (song.basic_info.is_new) " (计入b15)" else ""}",
         "的艺术家为 ${song.basic_info.artist}",
@@ -107,7 +109,9 @@ object GuessGame {
         "的紫谱谱师为 ${song.charts[3].charter}",
         "${if (song.level.size == 4) "没有" else "有"}白谱",
         // Don't know whether this will have wrong result for Destroyer SD lol
-        "${if (song.type == "DX" || MaimaiBot.musics.containsKey("10" + song.id)) "有" else "没有"} DX 谱面"
+        "${if (song.type == "DX" || MaimaiBotSharedData.musics
+                .containsKey(song.id.toDXId()))
+            "有" else "没有"} DX 谱面"
     )
     private fun tagEnToCh(tag: String) = when (tag) {
         "Very Easy" -> "十分简单"
@@ -118,3 +122,4 @@ object GuessGame {
         else -> tag
     }
 }
+fun String.toDXId() = filter { !it.isDigit() } + "10" + filter { it.isDigit() }

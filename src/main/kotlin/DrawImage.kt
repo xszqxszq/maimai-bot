@@ -40,8 +40,9 @@ object MaimaiImage {
     val imgDir = MaimaiBot.resolveDataFile("img").toVfs()
     val images = mutableMapOf<String, Bitmap>()
     private val sysFonts = MultiPlatformNativeSystemFontProvider()
+    lateinit var theme: MaimaiBestTheme
     suspend fun generateBest(info: MaimaiPlayerData, b50: Boolean): ByteArray {
-        val config = if (b50) MaimaiConfig.b50 else MaimaiConfig.b40
+        val config = if (b50) theme.b50 else theme.b40
         val result = images[config.bg]!!.clone()
         if (b50)
             info.charts.values.forEach { type ->
@@ -62,29 +63,34 @@ object MaimaiImage {
             drawText(if (b50) "对海外 maimai DX rating 的拟构" else "底分：${info.rating} + 段位分：${info.additional_rating}",
                 config.pos.getValue("ratingDetail"))
 
-            drawCharts(info.charts["sd"]!!.fillEmpty(if (b50) 35 else 25), if (b50) 7 else 5,
-                config.pos.getValue("leftPart").x, config.pos.getValue("leftPart").y, 8, config)
-            drawCharts(info.charts["dx"]!!.fillEmpty(15), 3,
-                config.pos.getValue("rightPart").x, config.pos.getValue("rightPart").y, 8, config)
+            drawCharts(info.charts["sd"]!!.fillEmpty(if (b50) 35 else 25), config.oldCols,
+                config.pos.getValue("oldCharts").x, config.pos.getValue("oldCharts").y, config.gap, config)
+            drawCharts(info.charts["dx"]!!.fillEmpty(15), config.newCols,
+                config.pos.getValue("newCharts").x, config.pos.getValue("newCharts").y, config.gap, config)
             dispose()
         }.encode(PNG)
     }
 
     suspend fun reloadImages() {
         images.clear()
-        imgDir.listRecursive().collect {
-            if (it.mimeType() in listOf(MimeType.IMAGE_JPEG, MimeType.IMAGE_PNG)) {
-                runCatching {
-                    images[it.baseName] = it.readNativeImage()
-                }.onFailure { e ->
-                    MaimaiBot.logger.error(e)
+        listOf(imgDir, MaimaiBot.resolveConfigFile(MaimaiConfig.theme).toVfs()).forEach { path ->
+            path.listRecursive().collect {
+                if (it.mimeType() in listOf(MimeType.IMAGE_JPEG, MimeType.IMAGE_PNG)) {
+                    runCatching {
+                        images[it.baseName] = it.readNativeImage()
+                    }.onFailure { e ->
+                        MaimaiBot.logger.error(e)
+                    }
                 }
             }
         }
         MaimaiBot.logger.info("成功载入所有图片。")
     }
     fun reloadFonts() {
-        MaimaiConfig.b40.pos.filterNot { it.value.fontName.isBlank() }.forEach {
+        theme.b40.pos.filterNot { it.value.fontName.isBlank() }.forEach {
+            fonts[it.value.fontName] = sysFonts.locateFontByName(it.value.fontName) ?: sysFonts.defaultFont()
+        }
+        theme.b50.pos.filterNot { it.value.fontName.isBlank() }.forEach {
             fonts[it.value.fontName] = sysFonts.locateFontByName(it.value.fontName) ?: sysFonts.defaultFont()
         }
     }
@@ -284,7 +290,7 @@ fun Context2d.drawCharts(charts: List<MaimaiPlayScore>, cols: Int, startX: Int, 
 
 
 fun Bitmap32.blurFixedSize(radius: Int) = applyEffect(BitmapEffect(radius))
-    .sliceWithSize(radius, radius, width, height).extract()
+    .removeAlpha().sliceWithSize(radius, radius, width, height).extract()
 fun Bitmap32.brightness(ratio: Float = 0.6f): Bitmap32 {
     if (ratio > 1f || ratio < -1f)
         throw IllegalArgumentException("Ratio must be in [-1, 1]")
@@ -294,55 +300,37 @@ fun Bitmap32.brightness(ratio: Float = 0.6f): Bitmap32 {
     }
     return this
 }
+fun Bitmap32.removeAlpha(): Bitmap32 {
+    forEach { n, _, _ ->
+        data[n] = RGBA(data[n].r, data[n].g, data[n].b, 255)
+    }
+    return this
+}
 fun Bitmap.randomSlice(size: Int = 66) =
     sliceWithSize((0..width - size).random(), (0..height - size).random(), size, size).extract()
 
+enum class CoverSource {
+    WAHLAP, ZETARAKU, DIVING_FISH
+} // TODO: Implement download from DIVING_FISH source
 
-object MaimaiConfig: AutoSavePluginConfig("maimai") {
-    val b40 by value(
-        MaimaiBestPicConfig(
-            "b40_bg.png",
-            160, 16.0 / 9,
-            buildMap {
-                put("name", MaiPicPosition("Source Han Sans CN Bold Bold", 30, 84, 45))
-                put("dxrating", MaiPicPosition("Arial Black", 16, 574, 39))
-                put("ratingDetail", MaiPicPosition("Source Han Sans CN Bold Bold", 20, 225, 102))
-                put("chTitle", MaiPicPosition("Source Han Sans CN Bold Bold", 18, 8, 22))
-                put("chAchievements", MaiPicPosition("Source Han Sans CN Bold Bold", 16, 8, 44))
-                put("chBase", MaiPicPosition("Source Han Sans CN Bold Bold", 16, 8, 60))
-                put("chRank", MaiPicPosition("Source Han Sans CN Bold Bold", 18, 8, 80))
-                put("label", MaiPicPosition(x = -19, y = 0, scale = 1.0))
-                put("rateIcon", MaiPicPosition(x = 93, y = 25, scale = 0.8))
-                put("fcIcon", MaiPicPosition(x = 138, y = 25, scale = 0.5))
-                put("shadow", MaiPicPosition(x = 2, y = 2))
-                put("leftPart", MaiPicPosition(x = 69, y = 210))
-                put("rightPart", MaiPicPosition(x = 936, y = 210))
-                put("ratingBg", MaiPicPosition(x = 451, y = 16))
-            }
-        ))
-    val b50 by value(
-        MaimaiBestPicConfig(
-            "b50_bg.png",
-            190, 16.0 / 9,
-            buildMap {
-                put("name", MaiPicPosition("Source Han Sans CN Bold Bold", 30, 484, 60))
-                put("dxrating", MaiPicPosition("Arial Black", 16, 980, 55))
-                put("ratingDetail", MaiPicPosition("Source Han Sans CN Bold Bold", 20, 600, 124))
-                put("chTitle", MaiPicPosition("Source Han Sans CN Bold Bold", 24, 10, 28))
-                put("chAchievements", MaiPicPosition("Source Han Sans CN Bold Bold", 18, 10, 53))
-                put("chBase", MaiPicPosition("Source Han Sans CN Bold Bold", 18, 10, 71))
-                put("chRank", MaiPicPosition("Source Han Sans CN Bold Bold", 22, 10, 95))
-                put("label", MaiPicPosition(x = -21, y = 0, scale = 19.0 / 16))
-                put("rateIcon", MaiPicPosition(x = 110, y = 32, scale = 0.9))
-                put("fcIcon", MaiPicPosition(x = 160, y = 30, scale = 0.7))
-                put("shadow", MaiPicPosition(x = 4, y = 4))
-                put("leftPart", MaiPicPosition(x = 10, y = 258))
-                put("rightPart", MaiPicPosition(x = 1444, y = 258))
-                put("ratingBg", MaiPicPosition(x = 858, y = 33))
-            }
+object MaimaiConfig: AutoSavePluginConfig("settings") {
+    val theme: String by value("portrait")
+    val multiAccountsMode: Boolean by value(false)
+    val coverSource: CoverSource by value(CoverSource.WAHLAP)
+    val maidataJsonUrls: List<String> by value(
+        listOf(
+            "https://raw.githubusercontent.com/CrazyKidCN/maimaiDX-CN-songs-database/main/maidata.json",
+            "https://cdn.jsdelivr.net/gh/CrazyKidCN/maimaiDX-CN-songs-database@main/maidata.json",
+            "https://raw.fastgit.org/CrazyKidCN/maimaiDX-CN-songs-database/main/maidata.json",
+            "https://cdn.githubjs.cf/CrazyKidCN/maimaiDX-CN-songs-database/raw/main/maidata.json",
         )
     )
+    val zetarakuSite: String by value("https://dp4p6x0xfi5o9.cloudfront.net")
 }
 @Serializable
-class MaimaiBestPicConfig(val bg: String, val coverWidth: Int, val coverRatio: Double,
-                          val pos: Map<String, MaiPicPosition>)
+class MaimaiBestPicConfig(
+    val bg: String, val coverWidth: Int, val coverRatio: Double, val oldCols: Int, val newCols: Int, val gap: Int,
+    val pos: Map<String, MaiPicPosition>)
+
+@Serializable
+class MaimaiBestTheme(val b40: MaimaiBestPicConfig, val b50: MaimaiBestPicConfig)

@@ -1,0 +1,184 @@
+b40: 
+  bg: b40_bg.png
+  coverWidth: 160
+  coverRatio: 1.7777777777777777
+  oldCols: 5
+  newCols: 3
+  gap: 8
+  pos: 
+    name: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 30
+      x: 84
+      y: 45
+      scale: 1.0
+    dxrating: 
+      fontName: Arial Black
+      size: 16
+      x: 574
+      y: 39
+      scale: 1.0
+    ratingDetail: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 20
+      x: 225
+      y: 102
+      scale: 1.0
+    chTitle: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 18
+      x: 8
+      y: 22
+      scale: 1.0
+    chAchievements: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 16
+      x: 8
+      y: 44
+      scale: 1.0
+    chBase: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 16
+      x: 8
+      y: 60
+      scale: 1.0
+    chRank: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 18
+      x: 8
+      y: 80
+      scale: 1.0
+    label: 
+      fontName: ''
+      size: 0
+      x: -19
+      y: 0
+      scale: 1.0
+    rateIcon: 
+      fontName: ''
+      size: 0
+      x: 93
+      y: 25
+      scale: 0.8
+    fcIcon: 
+      fontName: ''
+      size: 0
+      x: 138
+      y: 25
+      scale: 0.5
+    shadow: 
+      fontName: ''
+      size: 0
+      x: 2
+      y: 2
+      scale: 1.0
+    oldCharts:
+      fontName: ''
+      size: 0
+      x: 69
+      y: 210
+      scale: 1.0
+    newCharts:
+      fontName: ''
+      size: 0
+      x: 936
+      y: 210
+      scale: 1.0
+    ratingBg: 
+      fontName: ''
+      size: 0
+      x: 451
+      y: 16
+      scale: 1.0
+b50: 
+  bg: b50_bg.png
+  coverWidth: 190
+  coverRatio: 1.7777777777777777
+  oldCols: 7
+  newCols: 3
+  gap: 8
+  pos: 
+    name: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 30
+      x: 484
+      y: 60
+      scale: 1.0
+    dxrating: 
+      fontName: Arial Black
+      size: 16
+      x: 980
+      y: 55
+      scale: 1.0
+    ratingDetail: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 20
+      x: 600
+      y: 124
+      scale: 1.0
+    chTitle: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 24
+      x: 10
+      y: 28
+      scale: 1.0
+    chAchievements: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 18
+      x: 10
+      y: 53
+      scale: 1.0
+    chBase: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 18
+      x: 10
+      y: 71
+      scale: 1.0
+    chRank: 
+      fontName: Source Han Sans CN Bold Bold
+      size: 22
+      x: 10
+      y: 95
+      scale: 1.0
+    label: 
+      fontName: ''
+      size: 0
+      x: -21
+      y: 0
+      scale: 1.1875
+    rateIcon: 
+      fontName: ''
+      size: 0
+      x: 110
+      y: 32
+      scale: 0.9
+    fcIcon: 
+      fontName: ''
+      size: 0
+      x: 160
+      y: 30
+      scale: 0.7
+    shadow: 
+      fontName: ''
+      size: 0
+      x: 4
+      y: 4
+      scale: 1.0
+    oldCharts:
+      fontName: ''
+      size: 0
+      x: 10
+      y: 258
+      scale: 1.0
+    newCharts:
+      fontName: ''
+      size: 0
+      x: 1444
+      y: 258
+      scale: 1.0
+    ratingBg: 
+      fontName: ''
+      size: 0
+      x: 858
+      y: 33
+      scale: 1.0

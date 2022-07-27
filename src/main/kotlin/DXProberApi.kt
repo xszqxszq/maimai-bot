@@ -1,4 +1,4 @@
-@file:Suppress("unused")
+@file:Suppress("unused", "SpellCheckingInspection")
 
 package xyz.xszq
 
@@ -17,9 +17,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
+import kotlinx.serialization.json.*
 
 
 @Serializable
@@ -40,8 +38,8 @@ fun List<MaimaiPlayScore>.fillEmpty(target: Int): List<MaimaiPlayScore> {
 }
 
 @Serializable
-data class MaimaiMusicInfo(val id: String, val title: String, val type: String, val ds: List<Double>,
-                           val level: List<String>, val cids: List<Int>, val charts: List<MaimaiChartInfo>,
+data class MaimaiMusicInfo(val id: String, val title: String, val type: String, var ds: MutableList<Double>,
+                           var level: MutableList<String>, val cids: List<Int>, val charts: List<MaimaiChartInfo>,
                            val basic_info: MaimaiMusicBasicInfo
 )
 @Serializable
@@ -65,6 +63,23 @@ data class MaimaiChartStat(
     val v: Int ?= null, val t: Int ?= null
 )
 
+@Serializable
+data class MaiDataItem(val title: String, val image_file: String)
+
+@Serializable
+data class ZetarakuResponse(val songs: List<ZetarakuItem>)
+
+@Serializable
+data class ZetarakuItem(val title: String, val imageName: String)
+
+@Serializable
+data class MaimaiPlateResponse(val verlist: List<MaimaiBriefScore>)
+
+@Serializable
+data class MaimaiBriefScore(
+    val achievements: Double, val fc: String, val fs: String, val id: Int, val level: String,
+    val level_index: Int, val title: String, val type: String)
+
 object DXProberApi {
     private const val site = "https://www.diving-fish.com"
     private val json = Json { isLenient = true; ignoreUnknownKeys = true }
@@ -73,6 +88,7 @@ object DXProberApi {
             serializer = KotlinxSerializer(kotlinx.serialization.json.Json {
                 prettyPrint = true
                 isLenient = true
+                ignoreUnknownKeys = true
             })
         }
         expectSuccess = false
@@ -86,6 +102,8 @@ object DXProberApi {
         return emptyArray()
     }
     suspend fun getCovers() {
+        if (!imgDir.exists())
+            imgDir.mkdir()
         val covers = imgDir["covers"]
         if (!covers.exists())
             covers.mkdir()
@@ -93,24 +111,66 @@ object DXProberApi {
         var cnt = 0
         val semaphore = Semaphore(32)
         coroutineScope {
-            MaimaiBot.musics.values.forEach {
-                val target = covers["${it.id}.jpg"]
-                if (!target.exists()) {
-                    launch {
-                        semaphore.withPermit {
-                            kotlin.runCatching {
-                                val response = client.get<HttpResponse>("$site/covers/${it.id}.jpg")
-                                if (response.status == HttpStatusCode.OK) {
-                                    response.readBytes().writeToFile(target)
-                                    cnt ++
-                                    MaimaiBot.logger.info("${it.id}. ${it.title} 封面下载完成")
+            when (MaimaiConfig.coverSource) {
+                CoverSource.WAHLAP -> {
+                    var songs = listOf<MaiDataItem>()
+                    MaimaiConfig.maidataJsonUrls.forEach {
+                        kotlin.runCatching {
+                            client.get<List<MaiDataItem>>(it)
+                        }.onSuccess {
+                            songs = it
+                            return@forEach
+                        }
+                    }
+                    MaimaiBotSharedData.musics.values.forEach { info ->
+                        val target = covers["${info.id}.jpg"]
+                        if (!target.exists()) {
+                            launch {
+                                semaphore.withPermit {
+                                    kotlin.runCatching {
+                                        val response = client.get<HttpResponse>(
+                                            "https://maimai.wahlap.com/maimai-mobile/img/Music/" +
+                                                    songs.first { it.title == info.title }.image_file
+                                        )
+                                        if (response.status == HttpStatusCode.OK) {
+                                            response.readBytes().writeToFile(target)
+                                            cnt++
+                                            MaimaiBot.logger.info("${info.id}. ${info.title} 封面下载完成")
+                                        }
+                                    }.onFailure { e ->
+                                        MaimaiBot.logger.verbose(e.stackTraceToString())
+                                    }
                                 }
-                            }.onFailure { e ->
-                                MaimaiBot.logger.verbose(e.stackTraceToString())
                             }
                         }
                     }
                 }
+                CoverSource.ZETARAKU -> {
+                    val songs = client.get<ZetarakuResponse>("${MaimaiConfig.zetarakuSite}/maimai/data.json")
+                    MaimaiBotSharedData.musics.values.forEach { info ->
+                        val target = covers["${info.id}.jpg"]
+                        if (!target.exists()) {
+                            launch {
+                                semaphore.withPermit {
+                                    kotlin.runCatching {
+                                        val response = client.get<HttpResponse>(
+                                            "${MaimaiConfig.zetarakuSite}/maimai/img/cover/" +
+                                                    songs.songs.first { it.title == info.title }.imageName
+                                        )
+                                        if (response.status == HttpStatusCode.OK) {
+                                            response.readBytes().writeToFile(target)
+                                            cnt++
+                                            MaimaiBot.logger.info("${info.id}. ${info.title} 封面下载完成")
+                                        }
+                                    }.onFailure { e ->
+                                        MaimaiBot.logger.verbose(e.stackTraceToString())
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else -> {}
             }
         }
         MaimaiBot.logger.info("本次已缓存 $cnt 个歌曲封面。")
@@ -124,9 +184,26 @@ object DXProberApi {
             if (b50)
                 put("b50", true)
         }
-        println(payload)
         kotlin.runCatching {
             val result: HttpResponse = client.post("$site/api/maimaidxprober/query/player") {
+                contentType(ContentType.Application.Json)
+                body = payload
+            }
+            return Pair(result.status,
+                if (result.status == HttpStatusCode.OK) json.decodeFromString(result.readText()) else null)
+        }.onFailure {
+            return Pair(HttpStatusCode.BadGateway, null)
+        }
+        return Pair(HttpStatusCode.BadGateway, null)
+    }
+    suspend fun getDataByVersion(type: String = "qq", id: String,
+                               versions: List<String>): Pair<HttpStatusCode, MaimaiPlateResponse?> {
+        val payload = buildJsonObject {
+            put(type, id)
+            put("version", JsonArray(versions.map { JsonPrimitive(it) }))
+        }
+        kotlin.runCatching {
+            val result: HttpResponse = client.post("$site/api/maimaidxprober/query/plate") {
                 contentType(ContentType.Application.Json)
                 body = payload
             }

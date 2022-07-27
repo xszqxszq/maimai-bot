@@ -5,11 +5,11 @@ plugins {
     kotlin("jvm") version kotlinVersion
     kotlin("plugin.serialization") version kotlinVersion
 
-    id("net.mamoe.mirai-console") version "2.11.0-M1"
+    id("net.mamoe.mirai-console") version "2.12.0"
 }
 
 group = "xyz.xszq"
-version = "1.2.1"
+version = "1.3.0"
 val korlibsVersion = "2.7.0"
 val ktorVersion = "1.6.8"
 
@@ -19,10 +19,13 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.doyaaaaaken:kotlin-csv-jvm:1.2.0")
+    implementation("com.github.doyaaaaaken:kotlin-csv-jvm:1.3.0")
+    implementation("com.github.houbb:opencc4j:1.7.2")
     implementation("com.soywiz.korlibs.korim:korim:$korlibsVersion")
     implementation("com.soywiz.korlibs.korio:korio:$korlibsVersion")
     implementation("io.ktor:ktor-client-core:$ktorVersion")
     implementation("io.ktor:ktor-client-okhttp:$ktorVersion")
     implementation("io.ktor:ktor-client-serialization:$ktorVersion")
+    implementation("net.mamoe.yamlkt:yamlkt:0.10.2")
+    implementation("xyz.xszq:mirai-multi-account:1.0.2")
 }

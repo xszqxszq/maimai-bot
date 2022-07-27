@@ -1,5 +1,6 @@
 package xyz.xszq
 
+import com.github.houbb.opencc4j.util.ZhConverterUtil
 import com.soywiz.kds.atomic.kdsFreeze
 import com.soywiz.klock.measureTime
 import com.soywiz.klock.measureTimeWithResult
@@ -20,7 +21,8 @@ import net.mamoe.mirai.console.permission.PermissionService.Companion.hasPermiss
 import net.mamoe.mirai.console.permission.PermitteeId.Companion.permitteeId
 import net.mamoe.mirai.contact.Contact
 import net.mamoe.mirai.event.EventPriority
-import net.mamoe.mirai.event.GlobalEventChannel
+import net.mamoe.mirai.event.MessageDsl
+import net.mamoe.mirai.event.MessageSubscribersBuilder
 import net.mamoe.mirai.event.events.FriendMessageEvent
 import net.mamoe.mirai.event.events.GroupMessageEvent
 import net.mamoe.mirai.event.events.MessageEvent
@@ -67,10 +69,10 @@ suspend inline fun <reified P : MessageEvent> P.nextMessageEvent(
     val mapper: suspend (P) -> P? = createMapperForGroup(filter)
 
     return (if (timeoutMillis == -1L) {
-        GlobalEventChannel.syncFromEvent(priority, mapper)
+        MaimaiBot.channel.syncFromEvent(priority, mapper)
     } else {
         withTimeout(timeoutMillis) {
-            GlobalEventChannel.syncFromEvent(priority, mapper)
+            MaimaiBot.channel.syncFromEvent(priority, mapper)
         }
     })
 }
@@ -82,6 +84,49 @@ suspend fun MessageEvent.quoteReply(message: Message): MessageReceipt<Contact> =
     this.subject.sendMessage(this.message.quote() + message)
 suspend fun MessageEvent.quoteReply(message: String): MessageReceipt<Contact> = quoteReply(message.toPlainText())
 
+
+typealias MessageListener<T, R> = @MessageDsl suspend T.(String) -> R
+@MessageDsl
+internal fun <M : MessageEvent, Ret, R : RR, RR> MessageSubscribersBuilder<M, Ret, R, RR>.content(
+    filter: M.(String) -> Boolean,
+    onEvent: MessageListener<M, RR>
+): Ret =
+    subscriber(filter) { onEvent(this, it) }
+
+
+fun String.substringAfterPrefix(start: String): String = substring(start.length)
+fun String.toSimple(): String = ZhConverterUtil.toSimple(this)
+
+internal fun <M : MessageEvent, Ret, R : RR, RR> MessageSubscribersBuilder<M, Ret, R, RR>.startsWithSimpleImpl(
+    prefix: String,
+    removePrefix: Boolean = true,
+    trim: Boolean = true,
+    onEvent: @MessageDsl suspend M.(String, String) -> R
+): Ret {
+    return if (trim) {
+        val toCheck = prefix.trim()
+        content({ it.toSimple().lowercase().trimStart().startsWith(toCheck) }) {
+            if (removePrefix) onEvent(message.contentToString().toSimple().lowercase().substringAfter(toCheck).trim(),
+                message.contentToString().substringAfterPrefix(toCheck).trim())
+            else onEvent(this, message.contentToString().toSimple().lowercase().trim(),
+                message.contentToString().trim())
+        }
+    } else content({ it.toSimple().lowercase().startsWith(prefix) }) {
+        if (removePrefix) onEvent(message.contentToString().toSimple().lowercase().removePrefix(prefix),
+            message.contentToString().substringAfterPrefix(prefix).trim())
+        else onEvent(this, message.contentToString().toSimple().lowercase(),
+            message.contentToString().trim())
+    }
+}
+/**
+ * startsWith对于繁体增加支持的版本
+ * M.(简体化且小写后的参数, 原始参数) -> R
+ */
+@MessageDsl
+fun <M : MessageEvent, Ret, R : RR, RR> MessageSubscribersBuilder<M, Ret, R, RR>.startsWithSimple(
+    prefix: String, removePrefix: Boolean = true, trim: Boolean = true,
+    onEvent: @MessageDsl suspend M.(String, String) -> R
+): Ret = startsWithSimpleImpl(prefix, removePrefix, trim, onEvent)
 
 fun String.toArgsList(): List<String> = this.trim().split(" +".toRegex()).toMutableList().filter { isNotBlank() }
 
