@@ -14,12 +14,16 @@
 * 定数查歌
 * 分数线
 * 猜歌
+* 随机推分金曲（例：mai什么加2分；随机推分金曲）
 * 牌子进度（例：晓极进度）
+* 牌子完成表（例：橙将完成表）
 * 等级进度（例：13ss+进度，11ap进度，10fdx进度，14clear进度）
+* 等级完成表（例：13+完成表）
+* 等级分数列表（例：14分数列表）
 
 ## 部署南
 
-[点我下载](https://github.com/xszqxszq/maimai-bot/releases/download/v1.1/maimai-bot-1.1.mirai.jar)
+[点我下载](https://github.com/xszqxszq/maimai-bot/releases/download/v1.3.1/maimai-bot-1.3.1.mirai.jar)
 
 本插件开箱即用，只需和其他插件一样放入 [MCL](https://github.com/iTXTech/mcl-installer) 或其他版本的 Mirai 控制台 的 ```plugins``` 目录即可。
 
@@ -29,11 +33,13 @@
 
 #### 如何修改字体？
 
-修改 ```config/xyz.xszq.maimai-bot/config.yml``` 中的 ```fontName```值即可。
+修改 ```config/xyz.xszq.maimai-bot/主题名/theme.yml``` 中的 ```fontName```值即可。
 
 #### 如何更新歌曲别名？
 
-本项目内置的别名来自 [歌曲别名添加表](https://docs.qq.com/sheet/DWGNNYUdTT01PY2N1) ，如果需要更新，则需要切换到“现有歌曲别名表”并点击右上角，导出为→csv并保存到 ```config/xyz.xszq.maimai-bot/aliases.csv```
+对于更新了新版本的用户：删除 `config/xyz.xszq.maimai-bot/aliases.csv` 并重启即可更新成新版本内置的别名表。
+
+本项目内置的别名来自 [歌曲别名添加表](https://docs.qq.com/sheet/DWGNNYUdTT01PY2N1) 和 [歌曲别名表](https://docs.qq.com/sheet/DVnJUb0pYeXJxakVk) ，如果需要更新，则需要切换到“现有歌曲别名表”并点击右上角，导出为→csv并保存到 ```config/xyz.xszq.maimai-bot/aliases.csv```
 
 #### 查不到任何歌曲谱面信息？
 
