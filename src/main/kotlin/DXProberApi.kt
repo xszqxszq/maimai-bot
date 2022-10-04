@@ -173,8 +173,6 @@ object DXProberApi {
             }
         }
         MaimaiBot.logger.info("本次已缓存 $cnt 个歌曲封面。")
-        if (cnt > 0)
-            MaimaiImage.reloadImages()
     }
     suspend fun getPlayerData(type: String = "qq", id: String,
                               b50: Boolean = false): Pair<HttpStatusCode, MaimaiPlayerData?> {

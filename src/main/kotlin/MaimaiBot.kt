@@ -285,7 +285,6 @@ object MaimaiBot : KotlinPlugin(
                 }
             }
             logger.info { "maimai-bot 插件加载完毕。" }
-            DXProberApi.getCovers()
         }
         denied
     }
@@ -297,6 +296,7 @@ object MaimaiBot : KotlinPlugin(
         MaimaiConfig.reload()
         MaimaiImage.theme = yaml.decodeFromString(
             MaimaiBot.resolveConfigFile("${MaimaiConfig.theme}/theme.yml").toVfs().readString())
+        DXProberApi.getCovers()
         MaimaiImage.reloadFonts()
         MaimaiImage.reloadImages()
         reloadAliases()
