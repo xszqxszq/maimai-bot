@@ -21,7 +21,7 @@
 * 等级完成表（例：13+完成表）
 * 等级分数列表（例：14分数列表）
 
-## 部署南
+## 部署指南
 
 [点我下载](https://github.com/xszqxszq/maimai-bot/releases/download/v1.3.1/maimai-bot-1.3.1.mirai.jar)
 
