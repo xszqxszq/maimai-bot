@@ -1,8 +1,7 @@
-@file:Suppress("MemberVisibilityCanBePrivate")
+@file:Suppress("MemberVisibilityCanBePrivate", "SpellCheckingInspection")
 
 package xyz.xszq
 
-import xyz.xszq.MaimaiImage.resolveCover
 import com.soywiz.kds.iterators.fastForEach
 import com.soywiz.kmem.toIntFloor
 import com.soywiz.korim.bitmap.Bitmap
@@ -22,12 +21,21 @@ import com.soywiz.korim.text.TextAlignment
 import com.soywiz.korim.vector.Context2d
 import com.soywiz.korio.file.VfsFile
 import com.soywiz.korio.file.baseName
+import com.soywiz.korio.file.baseNameWithoutExtension
+import com.soywiz.korio.file.std.tempVfs
 import com.soywiz.korio.file.std.toVfs
 import com.soywiz.korio.net.MimeType
 import com.soywiz.korio.net.mimeType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import net.mamoe.mirai.console.data.AutoSavePluginConfig
 import net.mamoe.mirai.console.data.value
+import xyz.xszq.MaimaiBot.generateDsList
+import xyz.xszq.MaimaiBot.levels
+import xyz.xszq.MaimaiImage.resolveCoverCache
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -39,8 +47,9 @@ object MaimaiImage {
     val fonts = mutableMapOf<String, TtfFont>()
     val imgDir = MaimaiBot.resolveDataFile("img").toVfs()
     val images = mutableMapOf<String, Bitmap>()
-    private val sysFonts = MultiPlatformNativeSystemFontProvider()
-    lateinit var theme: MaimaiBestTheme
+    val sysFonts = MultiPlatformNativeSystemFontProvider()
+    lateinit var theme: MaimaiPicTheme
+    var dsGenerated = false
     suspend fun generateBest(info: MaimaiPlayerData, b50: Boolean): ByteArray {
         val config = if (b50) theme.b50 else theme.b40
         val result = images[config.bg]!!.clone()
@@ -64,26 +73,90 @@ object MaimaiImage {
                 config.pos.getValue("ratingDetail"))
 
             drawCharts(info.charts["sd"]!!.fillEmpty(if (b50) 35 else 25), config.oldCols,
-                config.pos.getValue("oldCharts").x, config.pos.getValue("oldCharts").y, config.gap, config)
+                config.pos.getValue("oldCharts").x, config.pos.getValue("oldCharts").y, config.gap, config,
+                if (b50) "b50" else "b40")
             drawCharts(info.charts["dx"]!!.fillEmpty(15), config.newCols,
-                config.pos.getValue("newCharts").x, config.pos.getValue("newCharts").y, config.gap, config)
+                config.pos.getValue("newCharts").x, config.pos.getValue("newCharts").y, config.gap, config,
+                if (b50) "b50" else "b40")
+            dispose()
+        }.encode(PNG)
+    }
+    suspend fun generateList(level: String, info: MaimaiPlayerData, l: List<MaimaiPlayScore>,
+                             nowPage: Int, totalPage: Int): ByteArray {
+        val config = theme.scoreList
+        val result = images[config.bg]!!.clone()
+        val realRating = info.rating + info.additional_rating
+        return result.context2d {
+            drawText(info.nickname.toSBC(), config.pos.getValue("name"))
+            images["rating_base_${ratingColor(realRating, false)}.png"] ?.let { ratingBg ->
+                drawImage(ratingBg, config.pos.getValue("ratingBg").x, config.pos.getValue("ratingBg").y)
+            }
+            drawText(info.nickname.toSBC(), config.pos.getValue("name"))
+            drawText(realRating.toString().toList().joinToString(" "), config.pos.getValue("dxrating"),
+                Colors.YELLOW, TextAlignment.RIGHT)
+            drawText("${level}分数列表，第 $nowPage 页 (共 $totalPage 页)", config.pos.getValue("ratingDetail"))
+
+            drawCharts(l.fillEmpty(50), config.oldCols,
+                config.pos.getValue("oldCharts").x, config.pos.getValue("oldCharts").y, config.gap, config,
+                "b50")
             dispose()
         }.encode(PNG)
     }
 
     suspend fun reloadImages() {
-        images.clear()
-        listOf(imgDir, MaimaiBot.resolveConfigFile(MaimaiConfig.theme).toVfs()).forEach { path ->
-            path.listRecursive().collect {
-                if (it.mimeType() in listOf(MimeType.IMAGE_JPEG, MimeType.IMAGE_PNG)) {
+        // 载入当前主题的所有图片，避免生成图片时频繁读取小图片
+        MaimaiBot.resolveConfigFile(MaimaiConfig.theme).toVfs().listRecursive().collect {
+            if (it.mimeType() in listOf(MimeType.IMAGE_JPEG, MimeType.IMAGE_PNG)) {
+                runCatching {
+                    images[it.baseName] = it.readNativeImage()
+                }.onFailure { e ->
+                    e.printStackTrace()
+                }
+            }
+        }
+        // 预处理封面图，提升生成图片的速度
+        MaimaiBot.logger.info("正在生成歌曲封面缓存图……")
+        val configs = buildMap {
+            put("b40", theme.b40)
+            put("b50", theme.b50)
+        }
+        val covers = imgDir["covers"].listRecursive().toList().filter {
+            it.mimeType() in listOf(MimeType.IMAGE_JPEG, MimeType.IMAGE_PNG)
+        }.toMutableList()
+        covers.add(MaimaiBot.resolveConfigFile("${MaimaiConfig.theme}/default_cover.png").toVfs())
+        coroutineScope {
+            covers.forEach { f ->
+                configs.forEach { config ->
                     runCatching {
-                        images[it.baseName] = it.readNativeImage()
+                        launch(Dispatchers.IO) {
+                            if (!images.containsKey("${config.key}/${f.baseNameWithoutExtension}.png")) {
+                                val coverRaw = f.readNativeImage().toBMP32()
+                                    .scaled(config.value.coverWidth, config.value.coverWidth, true)
+                                val newHeight = (coverRaw.width / config.value.coverRatio).roundToInt()
+                                var cover = coverRaw.sliceWithSize(0, (coverRaw.height - newHeight) / 2,
+                                    coverRaw.width, newHeight).extract()
+                                cover = cover.blurFixedSize(4).brightness(-0.04f)
+                                images["${config.key}/${f.baseNameWithoutExtension}.png"] = cover
+                            }
+                        }
                     }.onFailure { e ->
-                        MaimaiBot.logger.error(e)
+                        e.printStackTrace()
                     }
                 }
             }
         }
+
+        if (!dsGenerated) {
+            MaimaiBot.logger.info("正在生成定数表……")
+            dsGenerated = true
+            levels.forEach {
+                images["ds/${it}.png"] = generateDsList(it)
+                tempVfs["ds/${it}.png"].writeBytes(images["ds/${it}.png"]!!.encode(PNG))
+            }
+        }
+        // 释放内存
+        System.gc()
+
         MaimaiBot.logger.info("成功载入所有图片。")
     }
     fun reloadFonts() {
@@ -91,6 +164,12 @@ object MaimaiImage {
             fonts[it.value.fontName] = sysFonts.locateFontByName(it.value.fontName) ?: sysFonts.defaultFont()
         }
         theme.b50.pos.filterNot { it.value.fontName.isBlank() }.forEach {
+            fonts[it.value.fontName] = sysFonts.locateFontByName(it.value.fontName) ?: sysFonts.defaultFont()
+        }
+        theme.scoreList.pos.filterNot { it.value.fontName.isBlank() }.forEach {
+            fonts[it.value.fontName] = sysFonts.locateFontByName(it.value.fontName) ?: sysFonts.defaultFont()
+        }
+        theme.dsList.pos.filterNot { it.value.fontName.isBlank() }.forEach {
             fonts[it.value.fontName] = sysFonts.locateFontByName(it.value.fontName) ?: sysFonts.defaultFont()
         }
     }
@@ -153,6 +232,53 @@ object MaimaiImage {
             '白' -> 4
             else -> null
         }
+    fun levelIndex2Label(index: Int): String =
+        when (index) {
+            0 -> "Basic"
+            1 -> "Advanced"
+            2 -> "Expert"
+            3 -> "Master"
+            4 -> "Re:MASTER"
+            else -> ""
+        }
+    fun acc2rate(acc: Double): String =
+        when (acc) {
+            in 0.0..49.9999 ->  "d"
+            in 50.0..59.9999 -> "c"
+            in 60.0..69.9999 -> "b"
+            in 70.0..74.9999 -> "bb"
+            in 75.0..79.9999 -> "bbb"
+            in 80.0..89.9999 -> "a"
+            in 90.0..93.9999 -> "aa"
+            in 94.0..96.9999 -> "aaa"
+            in 97.0..97.9999 -> "s"
+            in 98.0..98.9999 -> "sp"
+            in 99.0..99.4999 -> "ss"
+            in 99.5..99.9999 -> "ssp"
+            in 100.0..100.4999 -> "sss"
+            in 100.5..101.0 -> "sssp"
+            else -> ""
+        }
+    fun getOldRa(ds: Double, achievement: Double): Int {
+        val baseRa = when (achievement) {
+            in 0.0..49.9999 ->  0.0
+            in 50.0..59.9999 -> 5.0
+            in 60.0..69.9999 -> 6.0
+            in 70.0..74.9999 -> 7.0
+            in 75.0..79.9999 -> 7.5
+            in 80.0..89.9999 -> 8.5
+            in 90.0..93.9999 -> 9.5
+            in 94.0..96.9999 -> 10.5
+            in 97.0..97.9999 -> 12.5
+            in 98.0..98.9999 -> 12.7
+            in 99.0..99.4999 -> 13.0
+            in 99.5..99.9999 -> 13.2
+            in 100.0..100.4999 -> 13.5
+            in 100.5..101.0 -> 14.0
+            else -> 0.0
+        }
+        return (ds * (min(100.5, achievement) / 100) * baseRa).toIntFloor()
+    }
     fun getNewRa(ds: Double, achievement: Double): Int {
         val baseRa = when (achievement) {
             in 0.0..49.9999 ->  7.0
@@ -173,10 +299,19 @@ object MaimaiImage {
         }
         return (ds * (min(100.5, achievement) / 100) * baseRa).toIntFloor()
     }
-    fun resolveCover(id: Int): Bitmap {
-        return images["$id.jpg"] ?: images["default_cover.jpg"]!!
+    fun resolveCoverCache(id: Int, type: String): Bitmap {
+        return if (images.containsKey("$type/$id.png"))
+            images["$type/$id.png"]!!
+        else
+            images["$type/default_cover.png"]!!
     }
-    suspend fun resolveCoverFileOrNull(id: String): VfsFile? {
+    suspend fun resolveCover(id: Int): VfsFile {
+        return if (imgDir["covers/$id.jpg"].exists())
+            imgDir["covers/$id.jpg"]
+        else
+            MaimaiBot.resolveConfigFile("${MaimaiConfig.theme}/default_cover.png").toVfs()
+    }
+    suspend fun resolveCoverOrNull(id: String): VfsFile? {
         val target = imgDir["covers/$id.jpg"]
         return if (target.exists()) target else null
     }
@@ -245,19 +380,17 @@ fun Context2d.drawTextRelative(text: String, x: Int, y: Int, attr: MaiPicPositio
     fillText(text, x + attr.x.toDouble() + offsetx, y + attr.y.toDouble())
 }
 fun Context2d.drawCharts(charts: List<MaimaiPlayScore>, cols: Int, startX: Int, startY: Int, gap: Int,
-                         config: MaimaiBestPicConfig
+                                 config: MaimaiPicConfig, configName: String, sort: Boolean = true
 ) {
-    charts.sortedWith(compareBy({ -it.ra }, { it.achievements })).forEachIndexed { index, chart ->
-        val coverRaw = resolveCover(chart.song_id).toBMP32()
-            .scaled(config.coverWidth, config.coverWidth, true)
-        val newHeight = (coverRaw.width / config.coverRatio).roundToInt()
-        val cover = coverRaw.sliceWithSize(0, (coverRaw.height - newHeight) / 2, coverRaw.width, newHeight)
-            .extract().blurFixedSize(4).brightness(-0.05f)
-        val x = startX + (index % cols) * (coverRaw.width + gap)
-        val y = startY + (index / cols) * (newHeight + gap)
+    (if (sort) charts.sortedWith(compareBy({ -it.ra }, { -it.achievements }))
+    else charts).forEachIndexed { index, chart ->
+        val cover = resolveCoverCache(chart.song_id, configName)
+        val x = startX + (index % cols) * (cover.width + gap)
+        val y = startY + (index / cols) * (cover.height + gap)
 
         state.fillStyle = Colors.BLACK // TODO: Make color changeable
-        fillRect(x + config.pos.getValue("shadow").x, y + config.pos.getValue("shadow").y, coverRaw.width, newHeight)
+        fillRect(x + config.pos.getValue("shadow").x, y + config.pos.getValue("shadow").y,
+            cover.width, cover.height)
         drawImage(cover, x, y)
         if (chart.title != "") {
             val label = config.pos.getValue("label")
@@ -301,8 +434,8 @@ fun Bitmap32.brightness(ratio: Float = 0.6f): Bitmap32 {
     return this
 }
 fun Bitmap32.removeAlpha(): Bitmap32 {
-    forEach { n, _, _ ->
-        data[n] = RGBA(data[n].r, data[n].g, data[n].b, 255)
+    forEach { _, x, y ->
+        this[x, y] = RGBA(this[x, y].r, this[x, y].g, this[x, y].b, 255)
     }
     return this
 }
@@ -310,8 +443,8 @@ fun Bitmap.randomSlice(size: Int = 66) =
     sliceWithSize((0..width - size).random(), (0..height - size).random(), size, size).extract()
 
 enum class CoverSource {
-    WAHLAP, ZETARAKU, DIVING_FISH
-} // TODO: Implement download from DIVING_FISH source
+    WAHLAP, ZETARAKU
+}
 
 object MaimaiConfig: AutoSavePluginConfig("settings") {
     val theme: String by value("portrait")
@@ -328,9 +461,13 @@ object MaimaiConfig: AutoSavePluginConfig("settings") {
     val zetarakuSite: String by value("https://dp4p6x0xfi5o9.cloudfront.net")
 }
 @Serializable
-class MaimaiBestPicConfig(
+class MaimaiPicConfig(
     val bg: String, val coverWidth: Int, val coverRatio: Double, val oldCols: Int, val newCols: Int, val gap: Int,
     val pos: Map<String, MaiPicPosition>)
 
 @Serializable
-class MaimaiBestTheme(val b40: MaimaiBestPicConfig, val b50: MaimaiBestPicConfig)
+class MaimaiPicTheme(val b40: MaimaiPicConfig, val b50: MaimaiPicConfig, val scoreList: MaimaiPicConfig,
+                     val dsList: MaimaiPicConfig)
+
+val difficulty2Color = listOf(RGBA(124, 216, 79), RGBA(245, 187, 11), RGBA(255, 128, 140),
+    RGBA(178, 91, 245), RGBA(244, 212, 255))

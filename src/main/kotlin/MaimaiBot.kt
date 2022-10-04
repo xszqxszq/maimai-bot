@@ -8,12 +8,23 @@ import com.soywiz.kds.iterators.fastForEachWithIndex
 import com.soywiz.kds.mapDouble
 import com.soywiz.kmem.toIntCeil
 import com.soywiz.kmem.toIntFloor
+import com.soywiz.korim.bitmap.context2d
+import com.soywiz.korim.bitmap.sliceWithSize
+import com.soywiz.korim.color.RGBA
+import com.soywiz.korim.format.PNG
+import com.soywiz.korim.format.encode
+import com.soywiz.korim.format.readNativeImage
+import com.soywiz.korim.text.TextAlignment
+import com.soywiz.korio.file.std.tempVfs
+import com.soywiz.korio.file.std.tmpdir
 import com.soywiz.korio.file.std.toVfs
 import com.soywiz.korio.file.writeToFile
 import com.soywiz.korio.lang.substr
 import com.soywiz.korio.util.toStringDecimal
 import io.ktor.http.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import net.mamoe.mirai.console.permission.PermissionId
 import net.mamoe.mirai.console.permission.PermissionService
@@ -25,7 +36,10 @@ import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
 import net.mamoe.mirai.contact.isOperator
 import net.mamoe.mirai.event.*
 import net.mamoe.mirai.event.events.MessageEvent
+import net.mamoe.mirai.message.data.At
 import net.mamoe.mirai.message.data.MessageChainBuilder
+import net.mamoe.mirai.message.data.anyIsInstance
+import net.mamoe.mirai.message.data.firstIsInstance
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
 import net.mamoe.mirai.utils.info
@@ -34,12 +48,22 @@ import xyz.xszq.MaimaiBotSharedData.aliases
 import xyz.xszq.MaimaiBotSharedData.hotList
 import xyz.xszq.MaimaiBotSharedData.musics
 import xyz.xszq.MaimaiBotSharedData.stats
+import xyz.xszq.MaimaiImage.acc2rate
 import xyz.xszq.MaimaiImage.difficulty2Name
+import xyz.xszq.MaimaiImage.getOldRa
+import xyz.xszq.MaimaiImage.images
+import xyz.xszq.MaimaiImage.imgDir
+import xyz.xszq.MaimaiImage.levelIndex2Label
+import xyz.xszq.MaimaiImage.resolveCover
+import java.io.File
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.io.path.isRegularFile
 import kotlin.io.path.name
+import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.random.Random
 
 object MaimaiBotSharedData {
     val musics = mutableMapOf<String, MaimaiMusicInfo>()
@@ -69,16 +93,27 @@ object MaimaiBot : KotlinPlugin(
     }
     var channel: EventChannel<Event> = GlobalEventChannel
     val yaml = Yaml {}
+    val levels = listOf("1", "2", "3", "4", "5", "6", "7", "7+", "8", "8+", "9", "9+", "10", "10+", "11", "11+", "12",
+        "12+", "13", "13+", "14", "14+", "15")
+    val validator = EventValidator()
+    val cacheDirs = listOf("ds")
     override fun onEnable() {
-        launch {
+        launch(Dispatchers.IO) {
+            cacheDirs.forEach {
+                if (File(tmpdir).resolve(it).exists())
+                   File(tmpdir).resolve(it).deleteRecursively()
+                File(tmpdir).resolve(it).mkdir()
+            }
             extractResources()
             reload()
             if (MaimaiConfig.multiAccountsMode)
-                channel = channel.validate(EventValidator())
+                channel = channel.validate(validator)
             channel.subscribeMessages {
                 startsWith("b40") { username ->
                     notDenied(denied) {
-                        if (username.isBlank())
+                        if (message.anyIsInstance<At>())
+                            queryBest("qq", message.firstIsInstance<At>().target.toString(), false, this)
+                        else if (username.isBlank())
                             queryBest("qq", sender.id.toString(), false, this)
                         else
                             queryBest("username", username, false, this)
@@ -86,7 +121,9 @@ object MaimaiBot : KotlinPlugin(
                 }
                 startsWith("b50") { username ->
                     notDenied(denied) {
-                        if (username.isBlank())
+                        if (message.anyIsInstance<At>())
+                            queryBest("qq", message.firstIsInstance<At>().target.toString(), true, this)
+                        else if (username.isBlank())
                             queryBest("qq", sender.id.toString(), true, this)
                         else
                             queryBest("username", username, true, this)
@@ -107,6 +144,16 @@ object MaimaiBot : KotlinPlugin(
                             }
                         }
                     }
+                }
+                startsWithSimple("mai什么") { _, raw ->
+                    if ("加" in raw || "推" in raw) {
+                        getRandomForRatingUp(raw.filter { it.isDigit() }.toInt(), this)
+                    } else {
+                        getRandom(Random.nextInt(0, 4), "", this)
+                    }
+                }
+                startsWith("随机推分金曲") {
+                    getRandomForRatingUp(event=this)
                 }
                 startsWith("id") { id ->
                     notDenied(denied) {
@@ -167,13 +214,23 @@ object MaimaiBot : KotlinPlugin(
                                 }
                             }
                         }
+                    if (ver != "" && type != "霸者" && ver != "舞")
+                        channel.subscribeMessages {
+                            startsWithSimple(ver + type + "完成表") { _, username ->
+                                notDenied(denied) {
+                                    if (username.isBlank())
+                                        queryPlateRecord(ver, type, "qq", sender.id.toString(), this)
+                                    else
+                                        queryPlateRecord(ver, type, "username", username, this)
+                                }
+                            }
+                        }
                 }
             }
-            arrayOf("1", "2", "3", "4", "5", "6", "7", "7+", "8", "8+", "9", "9+", "10", "10+", "11", "11+", "12",
-                "12+", "13", "13+", "14", "14+", "15").forEach { level ->
-                arrayOf("s", "s+", "ss", "ss+", "sss", "sss+", "ap", "ap+", "fc", "fc+", "fs", "fs+", "fdx", "fdx+",
-                    "clear").forEach { type ->
-                    channel.subscribeMessages {
+            channel.subscribeMessages {
+                levels.forEach { level ->
+                    arrayOf("s", "s+", "ss", "ss+", "sss", "sss+", "ap", "ap+", "fc", "fc+", "fs", "fs+", "fdx", "fdx+",
+                        "clear").forEach { type ->
                         startsWithSimple(level + type + "进度") { _, username ->
                             notDenied(denied) {
                                 if (username.isBlank())
@@ -181,6 +238,24 @@ object MaimaiBot : KotlinPlugin(
                                 else
                                     queryStateByLevel(level, type, "username", username, this)
                             }
+                        }
+                    }
+                    startsWithSimple(level + "分数列表") { _, page ->
+                        notDenied(denied) {
+                            queryRecordByLevel(level, "qq", sender.id.toString(),
+                                page.ifBlank { "0" }.toInt(), this)
+                        }
+                    }
+                    (level + "定数表") {
+                        notDenied(denied) {
+                            tempVfs["ds/${level}.png"].toExternalResource().use {
+                                quoteReply(it.uploadAsImage(subject))
+                            }
+                        }
+                    }
+                    (level + "完成表") {
+                        notDenied(denied) {
+                            queryLevelRecord(level, "qq", sender.id.toString(), this)
                         }
                     }
                 }
@@ -218,7 +293,7 @@ object MaimaiBot : KotlinPlugin(
         musics.putAll(DXProberApi.getMusicList().associateBy { it.id })
         stats.putAll(DXProberApi.getChartStat())
         hotList = stats.map { (id, stat) -> Pair(id, stat.sumOf { it.count ?: 0 }) }
-            .sortedByDescending { it.second }.take(150).map { it.first }
+            .sortedByDescending { it.second }.take(400).map { it.first }
         MaimaiConfig.reload()
         MaimaiImage.theme = yaml.decodeFromString(
             MaimaiBot.resolveConfigFile("${MaimaiConfig.theme}/theme.yml").toVfs().readString())
@@ -283,7 +358,7 @@ object MaimaiBot : KotlinPlugin(
                     quoteReply(img.uploadAsImage(subject))
                 }
             }
-            HttpStatusCode.BadRequest -> quoteReply("用户名不存在，请确认用户名对应的玩家在 Diving-Fish 的舞萌 DX 查分器" +
+            HttpStatusCode.BadRequest -> quoteReply("您的QQ未绑定查分器账号或所查询的用户名不存在，请确认用户名对应的玩家在 Diving-Fish 的舞萌 DX 查分器" +
                     "（https://www.diving-fish.com/maimaidx/prober/）上已注册")
             HttpStatusCode.Forbidden -> quoteReply("该玩家已禁止他人查询成绩")
         }
@@ -301,7 +376,7 @@ object MaimaiBot : KotlinPlugin(
             val chart = selected.charts[difficulty]
             val result = MessageChainBuilder()
             result.add("${selected.id}. ${selected.title}\n")
-            MaimaiImage.resolveCoverFileOrNull(selected.id) ?.let {
+            MaimaiImage.resolveCoverOrNull(selected.id) ?.let {
                 it.toExternalResource().use { png ->
                     result.add(png.uploadAsImage(subject))
                 }
@@ -397,7 +472,6 @@ object MaimaiBot : KotlinPlugin(
         }
     }
 
-
     private suspend fun getRandom(difficulty: Int = -1, level: String, event: MessageEvent) = event.run {
         val selected = musics.values.filter {
             (level in it.level && it.level.size > difficulty && difficulty != -1 && it.level[difficulty] == level)
@@ -409,11 +483,56 @@ object MaimaiBot : KotlinPlugin(
             quoteReply("没有这样的乐曲。")
         }
     }
+    private suspend fun getRandomForRatingUp(target: Int = 1, event: MessageEvent) = event.run {
+        val result = DXProberApi.getPlayerData("qq", sender.id.toString(), false)
+        when (result.first) {
+            HttpStatusCode.OK -> {
+                val b40chartIds = (result.second!!.charts["dx"]!! + result.second!!.charts["sd"]!!).map { it.song_id }
+                val nowRa25 = result.second!!.charts["sd"]!!.map { it.ra }.sorted()
+                val nowRa15 = result.second!!.charts["dx"]!!.map { it.ra }.sorted()
+                val nowRa25sum = nowRa25.sum()
+                val nowRa15sum = nowRa15.sum()
+                val selected = musics.values.filter {
+                    it.id.toInt() !in b40chartIds
+                }.map { m ->
+                    m.ds.mapIndexed { index, it ->
+                        val ra = getOldRa(it, 100.5)
+                        if (m.basic_info.is_new) {
+                            if (ra > nowRa15.first() && ((nowRa15 + listOf(ra)).sortedDescending().take(15).sum()
+                                    - nowRa15sum) in target..target + 10 ) Pair(m, index)
+                            else Pair(null, -1)
+                        } else {
+                            if (ra > nowRa25.first() && ((nowRa25 + listOf(ra)).sortedDescending().take(25).sum()
+                                        - nowRa25sum) in target..target + 10 ) Pair(m, index)
+                            else Pair(null, -1)
+                        }
+                    }.filter { it.first != null }
+                }.flatten().randomOrNull()
+                selected ?.let {
+                    val info = getMusicInfoForSend(it.first!!, this)
+                    val ra = getOldRa(it.first!!.ds[it.second], 100.5)
+                    val up = if (it.first!!.basic_info.is_new)
+                            (nowRa15 + listOf(ra)).sortedDescending().take(15).sum() - nowRa15sum
+                    else (nowRa25 + listOf(ra)).sortedDescending().take(25).sum() - nowRa25sum
+                    info.add("\n此曲${difficulty2Name(it.second)}难度推至 100.5% 可加${
+                        if (target == 1) " $up " else "至少 $target "
+                    }分")
+                    quoteReply(info.build())
+                } ?: run {
+                    quoteReply("未找到符合标准的推分金曲。")
+                }
+            }
+            HttpStatusCode.BadRequest -> quoteReply("您的QQ未绑定查分器账号，请确认您在 Diving-Fish 的舞萌 DX 查分器" +
+                    "（https://www.diving-fish.com/maimaidx/prober/）上已注册且绑定了QQ号")
+            HttpStatusCode.Forbidden -> quoteReply("该玩家已禁止他人查询成绩")
+        }
+        return@run
+    }
     private suspend fun getScoreRequirements(args: List<String>, event: MessageEvent) = event.run {
         when {
             args.size == 2 && args[1].toDoubleOrNull() != null && (args[1].toDouble() in 0.0..101.0) -> {
                 MaimaiImage.name2Difficulty(args[0][0]) ?.let { difficulty ->
-                    args[0].filter { it.isDigit() || it.isLetter() }.toIntOrNull() ?.let { id ->
+                    args[0].filter { it.isDigit() }.toIntOrNull() ?.let { id ->
                         musics[id.toString()] ?.let { target ->
                             if (target.level.size <= difficulty) {
                                 quoteReply("该谱面没有此难度。请输入“分数线 帮助”查看使用说明。")
@@ -462,7 +581,7 @@ object MaimaiBot : KotlinPlugin(
         selected: MaimaiMusicInfo, event: MessageEvent, builder: MessageChainBuilder = MessageChainBuilder())
             = event.run {
         builder.add(selected.id + ". " + selected.title + "\n")
-        MaimaiImage.resolveCoverFileOrNull(selected.id) ?.let {
+        MaimaiImage.resolveCoverOrNull(selected.id) ?.let {
             it.toExternalResource().use { png ->
                 builder.add(png.uploadAsImage(subject))
             }
@@ -484,7 +603,7 @@ object MaimaiBot : KotlinPlugin(
         selected: MaimaiMusicInfo, event: MessageEvent, builder: MessageChainBuilder = MessageChainBuilder())
             = event.run {
         builder.add(selected.id + ". " + selected.title + "\n")
-        MaimaiImage.resolveCoverFileOrNull(selected.id) ?.let {
+        MaimaiImage.resolveCoverOrNull(selected.id) ?.let {
             it.toExternalResource().use { png ->
                 builder.add(png.uploadAsImage(subject))
             }
@@ -534,7 +653,7 @@ object MaimaiBot : KotlinPlugin(
                 "极" -> it.fc.isEmpty()
                 "舞舞" -> it.fs !in listOf("fsd", "fsdp")
                 "神" -> it.fc !in listOf("ap", "app")
-                "霸者" -> it.achievements < 60.0
+                "霸者" -> it.achievements < 80.0
                 else -> false
             }
         }.forEach {
@@ -642,5 +761,204 @@ object MaimaiBot : KotlinPlugin(
             return
         }
         quoteReply("您的${level}${type}进度如下：\n共${tot}个谱面，已完成${tot-remains.size}个，剩余${remains.size}个")
+    }
+    suspend fun queryRecordByLevel(
+        level: String, queryType: String, id: String, page: Int, event: MessageEvent
+    ) = event.run {
+        val result = DXProberApi.getDataByVersion(queryType, id, getPlateVerList("all"))
+        when (result.first) {
+            HttpStatusCode.BadRequest -> quoteReply("用户名不存在，请确认用户名对应的玩家在 Diving-Fish 的舞萌 DX 查分器" +
+                    "（https://www.diving-fish.com/maimaidx/prober/）上已注册")
+            HttpStatusCode.Forbidden -> quoteReply("该玩家已禁止他人查询。如果是您本人账号且已绑定QQ号，请不带用户名再次尝试查询一次")
+        }
+        if (result.second == null || result.first != HttpStatusCode.OK)
+            return@run
+
+        val basicInfo = DXProberApi.getPlayerData(queryType, id, false).second!!
+        val leastDs =
+            if (level.last() == '+') level.substringBefore('+').toInt() + 0.7
+            else level.toDouble()
+        val highestDs =
+            if (level.last() == '+') level.substringBefore('+').toInt() + 0.91
+            else leastDs + 0.61
+        val data = result.second!!.verlist.filter {
+            musics[it.id.toString()]!!.ds[it.level_index] in leastDs .. highestDs
+        }.map {
+            val info = musics[it.id.toString()]!!
+            MaimaiPlayScore(it.achievements, info.ds[it.level_index], 0, it.fc, it.fs,
+                info.level[it.level_index], it.level_index, levelIndex2Label(it.level_index),
+                getOldRa(info.ds[it.level_index], it.achievements), acc2rate(it.achievements),
+                it.id, it.title, it.type)
+        }.sortedWith(compareBy({ -it.achievements }, { -it.ra }))
+        val pages = (data.size / 50.0).toIntCeil()
+        val realPage = if (page in 1..pages) page else 1
+
+        MaimaiImage.generateList(level, basicInfo, data.subList((realPage - 1) * 50,
+            min(realPage * 50, data.size)), realPage, pages).toExternalResource().use {
+            quoteReply(it.uploadAsImage(subject))
+        }
+    }
+    suspend fun generateDsList(level: String) = withContext(Dispatchers.IO) {
+        val raw = musics.values.map {
+            it.level.mapIndexed { index, s -> if (s == level) Pair(it, index) else null }.filterNotNull()
+        }.flatten()
+        val songs = raw.map { it.first.ds[it.second] }.distinct().sortedDescending().associateWith { d ->
+            raw.filter { m -> m.first.ds[m.second] == d }
+        }
+        val config = MaimaiImage.theme.dsList
+        val result = images[config.bg]!!.clone()
+        var nowY = config.pos.getValue("list").y
+        result.context2d {
+            drawText(level + "定数表", config.pos.getValue("title"), align=TextAlignment.CENTER)
+            songs.forEach { (ds, l) ->
+                drawTextRelative(ds.toString(), config.pos.getValue("list").x, nowY, config.pos.getValue("ds"))
+                l.forEachIndexed { index, (m, difficulty) ->
+                    val row = index / config.oldCols
+                    val col = index % config.oldCols
+                    val coverRaw = resolveCover(m.id.toInt()).readNativeImage().toBMP32()
+                        .scaled(config.coverWidth, config.coverWidth, true)
+                    val newHeight = (coverRaw.width / config.coverRatio).roundToInt()
+                    val cover = coverRaw.sliceWithSize(0, (coverRaw.height - newHeight) / 2,
+                        coverRaw.width, newHeight).extract()
+                    val x = config.pos.getValue("list").x + col * (config.coverWidth + config.gap)
+                    val y = nowY + row * (config.coverWidth + config.gap)
+                    fillStyle = difficulty2Color[difficulty]
+                    fillRect(x - 3, y - 3, cover.width + 6, cover.height + 6)
+                    drawImage(cover, x, y)
+                }
+                nowY += (l.size * 1.0 / config.oldCols).toIntCeil() * (config.coverWidth + config.gap) + config.gap
+            }
+        }.sliceWithSize(0, 0, result.width, nowY + config.gap).extract()
+    }
+    suspend fun queryLevelRecord(level: String, queryType: String, id: String, event: MessageEvent) = event.run {
+        val result = DXProberApi.getDataByVersion(queryType, id, getPlateVerList("all"))
+        when (result.first) {
+            HttpStatusCode.BadRequest -> quoteReply("用户名不存在，请确认用户名对应的玩家在 Diving-Fish 的舞萌 DX 查分器" +
+                    "（https://www.diving-fish.com/maimaidx/prober/）上已注册")
+            HttpStatusCode.Forbidden -> quoteReply("该玩家已禁止他人查询。如果是您本人账号且已绑定QQ号，请不带用户名再次尝试查询一次")
+        }
+        if (result.second == null || result.first != HttpStatusCode.OK)
+            return@run
+        val records = result.second!!.verlist.filter { it.level == level }.filter { it.achievements > 79.9999 }
+        val img = images["ds/$level.png"]!!
+        val raw = musics.values.map {
+            it.level.mapIndexed { index, s -> if (s == level) Pair(it, index) else null }.filterNotNull()
+        }.flatten()
+        val songs = raw.map { it.first.ds[it.second] }.distinct().sortedDescending().associateWith { d ->
+            raw.filter { m -> m.first.ds[m.second] == d }
+        }
+        val config = MaimaiImage.theme.dsList
+        var nowY = config.pos.getValue("list").y
+        img.context2d {
+            songs.forEach { (ds, l) ->
+                drawTextRelative(ds.toString(), config.pos.getValue("list").x, nowY, config.pos.getValue("ds"))
+                l.forEachIndexed { index, (m, difficulty) ->
+                    records.find { it.id == m.id.toInt() && it.level_index == difficulty } ?.let { record ->
+                        val row = index / config.oldCols
+                        val col = index % config.oldCols
+                        val x = config.pos.getValue("list").x + col * (config.coverWidth + config.gap)
+                        val y = nowY + row * (config.coverWidth + config.gap)
+                        val rateIcon = config.pos.getValue("rateIcon")
+                        fillStyle = RGBA(0, 0, 0, 128)
+                        fillRect(x, y, config.coverWidth, config.coverWidth)
+                        images["music_icon_${acc2rate(record.achievements)}.png"] ?.let {
+                            drawImage(it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
+                                x + rateIcon.x, y + rateIcon.y)
+                        }
+                    }
+                }
+                nowY += (l.size * 1.0 / config.oldCols).toIntCeil() * (config.coverWidth + config.gap) + config.gap
+            }
+        }.encode(PNG).toExternalResource().use {
+            quoteReply(it.uploadAsImage(subject))
+        }
+    }
+    suspend fun queryPlateRecord(vName: String, type: String, queryType: String, id: String, event: MessageEvent) = event.run {
+        val vList = getPlateVerList(vName)
+        val result = DXProberApi.getDataByVersion(queryType, id, vList)
+        when (result.first) {
+            HttpStatusCode.BadRequest -> quoteReply("用户名不存在，请确认用户名对应的玩家在 Diving-Fish 的舞萌 DX 查分器" +
+                    "（https://www.diving-fish.com/maimaidx/prober/）上已注册")
+            HttpStatusCode.Forbidden -> quoteReply("该玩家已禁止他人查询。如果是您本人账号且已绑定QQ号，请不带用户名再次尝试查询一次")
+        }
+        if (result.second == null || result.first != HttpStatusCode.OK)
+            return@run
+
+        val raw = musics.values.filter { it.basic_info.from in vList }.toMutableList()
+        val excluded = listOf(341, 451, 455, 460, 792, 853)
+        if (vName == "真")
+            raw.removeIf { it.id == "70" }
+        raw.removeIf { it.id.toInt() in excluded }
+        val songs = raw.map { it.level[3] }.distinct().sortedDescending().associateWith { d ->
+            raw.filter { m -> m.level[3] == d }
+        }
+        val records = result.second!!.verlist.filter { it.achievements > 79.9999 }
+        val config = MaimaiImage.theme.dsList
+        val img = images[config.bg]!!.clone()
+        var nowY = config.pos.getValue("list").y
+        img.context2d {
+            drawText("${vName}${type}完成表", config.pos.getValue("title"), align=TextAlignment.CENTER)
+            songs.forEach { (level, l) ->
+                drawTextRelative(level, config.pos.getValue("list").x, nowY, config.pos.getValue("ds"))
+                l.forEachIndexed { index, m ->
+                    val row = index / config.oldCols
+                    val col = index % config.oldCols
+                    val coverRaw = imgDir[m.id].readNativeImage().toBMP32()
+                        .scaled(config.coverWidth, config.coverWidth, true)
+                    val newHeight = (coverRaw.width / config.coverRatio).roundToInt()
+                    val cover = coverRaw.sliceWithSize(0, (coverRaw.height - newHeight) / 2,
+                        coverRaw.width, newHeight).extract()
+                    val x = config.pos.getValue("list").x + col * (config.coverWidth + config.gap)
+                    val y = nowY + row * (config.coverWidth + config.gap)
+                    drawImage(cover, x, y)
+                    records.find { it.id == m.id.toInt() && it.level_index == 3 } ?.let { record ->
+                        when (type) {
+                            "将" -> {
+                                if (record.achievements > 99.9999) {
+                                    fillStyle = RGBA(0, 0, 0, 128)
+                                    fillRect(x, y, config.coverWidth, config.coverWidth)
+                                }
+                                val rateIcon = config.pos.getValue("rateIcon")
+                                images["music_icon_${acc2rate(record.achievements)}.png"]?.let {
+                                    drawImage(
+                                        it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
+                                        x + rateIcon.x, y + rateIcon.y
+                                    )
+                                }
+                            }
+                            in listOf("极", "神") -> {
+                                if ((type == "极" && record.fc.isNotEmpty()) || (type == "神" && record.fc in listOf("ap", "app"))) {
+                                    fillStyle = RGBA(0, 0, 0, 128)
+                                    fillRect(x, y, config.coverWidth, config.coverWidth)
+                                }
+                                val rateIcon = config.pos.getValue("fcIcon")
+                                images["music_icon_${record.fc}.png"]?.let {
+                                    drawImage(
+                                        it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
+                                        x + rateIcon.x, y + rateIcon.y
+                                    )
+                                }
+                            }
+                            "舞舞" -> {
+                                if (record.fs in listOf("fsd", "fsdp")) {
+                                    fillStyle = RGBA(0, 0, 0, 128)
+                                    fillRect(x, y, config.coverWidth, config.coverWidth)
+                                }
+                                val rateIcon = config.pos.getValue("fcIcon")
+                                images["music_icon_${record.fs}.png"]?.let {
+                                    drawImage(
+                                        it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
+                                        x + rateIcon.x, y + rateIcon.y
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                nowY += (l.size * 1.0 / config.oldCols).toIntCeil() * (config.coverWidth + config.gap) + config.gap
+            }
+        }.sliceWithSize(0, 0, img.width, nowY + config.gap).extract().encode(PNG).toExternalResource().use {
+            quoteReply(it.uploadAsImage(subject))
+        }
     }
 }

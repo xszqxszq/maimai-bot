@@ -170,7 +170,6 @@ object DXProberApi {
                         }
                     }
                 }
-                else -> {}
             }
         }
         MaimaiBot.logger.info("本次已缓存 $cnt 个歌曲封面。")

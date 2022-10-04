@@ -5,11 +5,11 @@ plugins {
     kotlin("jvm") version kotlinVersion
     kotlin("plugin.serialization") version kotlinVersion
 
-    id("net.mamoe.mirai-console") version "2.12.0"
+    id("net.mamoe.mirai-console") version "2.12.2"
 }
 
 group = "xyz.xszq"
-version = "1.3.0"
+version = "1.3.1"
 val korlibsVersion = "2.7.0"
 val ktorVersion = "1.6.8"
 
@@ -27,5 +27,5 @@ dependencies {
     implementation("io.ktor:ktor-client-okhttp:$ktorVersion")
     implementation("io.ktor:ktor-client-serialization:$ktorVersion")
     implementation("net.mamoe.yamlkt:yamlkt:0.10.2")
-    implementation("xyz.xszq:mirai-multi-account:1.0.2")
+    implementation("xyz.xszq:mirai-multi-account:1.1.2")
 }

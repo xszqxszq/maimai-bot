@@ -182,3 +182,133 @@ b50:
       x: 140
       y: 20
       scale: 1.0
+scoreList:
+  bg: score_bg.png
+  coverWidth: 180
+  coverRatio: 1.7777777777777777
+  oldCols: 5
+  newCols: 5
+  gap: 12
+  pos:
+    name:
+      fontName: Source Han Sans CN Bold Bold
+      size: 30
+      x: 157
+      y: 98
+      scale: 1.0
+    dxrating:
+      fontName: Arial Black
+      size: 15
+      x: 285
+      y: 47
+      scale: 1.0
+    ratingDetail:
+      fontName: Source Han Sans CN Bold Bold
+      size: 16
+      x: 160
+      y: 133
+      scale: 1.0
+    chTitle:
+      fontName: Source Han Sans CN Bold Bold
+      size: 20
+      x: 8
+      y: 42
+      scale: 1.0
+    chAchievements:
+      fontName: Source Han Sans CN Bold Bold
+      size: 16
+      x: 8
+      y: 63
+      scale: 1.0
+    chBase:
+      fontName: Source Han Sans CN Bold Bold
+      size: 16
+      x: 8
+      y: 80
+      scale: 1.0
+    chRank:
+      fontName: Source Han Sans CN Bold Bold
+      size: 16
+      x: 8
+      y: 95
+      scale: 1.0
+    label:
+      fontName: ''
+      size: 0
+      x: 0
+      y: 0
+      scale: 1.0
+    rateIcon:
+      fontName: ''
+      size: 0
+      x: 125
+      y: 45
+      scale: 0.42
+    fcIcon:
+      fontName: ''
+      size: 0
+      x: 150
+      y: 76
+      scale: 0.5
+    shadow:
+      fontName: ''
+      size: 0
+      x: 2
+      y: 2
+      scale: 1.0
+    oldCharts:
+      fontName: ''
+      size: 0
+      x: 69
+      y: 206
+      scale: 1.0
+    newCharts:
+      fontName: ''
+      size: 0
+      x: 69
+      y: 1046
+      scale: 1.0
+    ratingBg:
+      fontName: ''
+      size: 0
+      x: 140
+      y: 20
+      scale: 1.0
+dsList:
+  bg: ds_bg.png
+  coverWidth: 70
+  coverRatio: 1.0
+  oldCols: 10
+  newCols: 0
+  gap: 20
+  pos:
+    title:
+      fontName: Source Han Sans CN Bold Bold
+      size: 50
+      x: 535
+      y: 145
+      scale: 1.0
+    ds:
+      fontName: Source Han Sans CN Bold Bold
+      size: 48
+      x: -140
+      y: 55
+      scale: 1.0
+    list:
+      fontName: ''
+      size: 0
+      scale: 1.0
+      x: 170
+      y: 230
+    rateIcon:
+      fontName: ''
+      size: 0
+      scale: 0.6
+      x: 0
+      y: 20
+    fcIcon:
+      fontName: ''
+      size: 0
+      scale: 1.0
+      x: 10
+      y: 12

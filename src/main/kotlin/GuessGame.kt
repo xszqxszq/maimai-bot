@@ -2,6 +2,7 @@ package xyz.xszq
 
 import com.soywiz.korim.format.PNG
 import com.soywiz.korim.format.encode
+import com.soywiz.korim.format.readNativeImage
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -44,7 +45,7 @@ object GuessGame {
                     MaimaiBotSharedData.aliases[MaimaiBotSharedData.musics[selected.id.toDXId()]!!.title]
                         ?.let { ansList.addAll(it) }
                 }
-                val options = if (MaimaiImage.resolveCoverFileOrNull(selected.id) == null) 6 else 7
+                val options = if (MaimaiImage.resolveCoverOrNull(selected.id) == null) 6 else 7
                 ansList.replaceAll { it.lowercase() }
                 coroutineScope {
                     var finished = false
@@ -57,7 +58,7 @@ object GuessGame {
                         }
                         val last = MessageChainBuilder()
                         if (options == 7) {
-                            MaimaiImage.resolveCover(selected.id.toInt()).randomSlice().encode(PNG)
+                            MaimaiImage.resolveCover(selected.id.toInt()).readNativeImage().randomSlice().encode(PNG)
                                 .toExternalResource().use {
                                     last.add("$options/$options. 这首歌的封面部分如图：")
                                     last.add(it.uploadAsImage(group))
