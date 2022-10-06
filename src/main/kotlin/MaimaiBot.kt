@@ -105,9 +105,6 @@ object MaimaiBot : KotlinPlugin(
                 File(tmpdir).resolve(it).mkdir()
             }
             extractResources()
-            reload()
-            if (MaimaiConfig.multiAccountsMode)
-                channel = channel.validate(validator)
             channel.subscribeMessages {
                 startsWith("b40") { username ->
                     notDenied(denied) {
@@ -284,6 +281,9 @@ object MaimaiBot : KotlinPlugin(
                     }
                 }
             }
+            reload()
+            if (MaimaiConfig.multiAccountsMode)
+                channel = channel.validate(validator)
             logger.info { "maimai-bot 插件加载完毕。" }
         }
         denied
