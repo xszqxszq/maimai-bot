@@ -52,7 +52,6 @@ import xyz.xszq.MaimaiImage.acc2rate
 import xyz.xszq.MaimaiImage.difficulty2Name
 import xyz.xszq.MaimaiImage.getOldRa
 import xyz.xszq.MaimaiImage.images
-import xyz.xszq.MaimaiImage.imgDir
 import xyz.xszq.MaimaiImage.levelIndex2Label
 import xyz.xszq.MaimaiImage.resolveCover
 import java.io.File
@@ -903,7 +902,7 @@ object MaimaiBot : KotlinPlugin(
                 l.forEachIndexed { index, m ->
                     val row = index / config.oldCols
                     val col = index % config.oldCols
-                    val coverRaw = imgDir[m.id].readNativeImage().toBMP32()
+                    val coverRaw = resolveCover(m.id.toInt()).readNativeImage().toBMP32()
                         .scaled(config.coverWidth, config.coverWidth, true)
                     val newHeight = (coverRaw.width / config.coverRatio).roundToInt()
                     val cover = coverRaw.sliceWithSize(0, (coverRaw.height - newHeight) / 2,
