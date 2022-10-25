@@ -25,10 +25,10 @@ data class MaimaiPlayerData(val nickname: String, val rating: Int, val additiona
                  val charts: Map<String, List<MaimaiPlayScore>>)
 
 @Serializable
-open class MaimaiPlayScore(val achievements: Double, val ds: Double, var dxScore: Int, val fc: String, val fs: String,
-                     val level: String, val level_index: Int, val level_label: String, val ra: Int,
-                     val rate: String, val song_id: Int, val title: String, val type: String)
-object EmptyMaimaiPlayRecord: MaimaiPlayScore(0.0, .0, 0, "", "", "",
+open class MaimaiPlayScore(val achievements: Double, val ds: Double, val fc: String, val fs: String,
+                           val level: String, val level_index: Int, val level_label: String, var ra: Int,
+                           val rate: String, val song_id: Int, val title: String, val type: String)
+object EmptyMaimaiPlayRecord: MaimaiPlayScore(0.0, .0, "", "", "",
     0, "", 0, "", -1, "", "")
 fun List<MaimaiPlayScore>.fillEmpty(target: Int): List<MaimaiPlayScore> {
     val result = toMutableList()
@@ -64,13 +64,13 @@ data class MaimaiChartStat(
 )
 
 @Serializable
-data class MaiDataItem(val title: String, val image_file: String)
+data class MaiDataItem(val title: String, val image_file: String, val artist: String)
 
 @Serializable
 data class ZetarakuResponse(val songs: List<ZetarakuItem>)
 
 @Serializable
-data class ZetarakuItem(val title: String, val imageName: String)
+data class ZetarakuItem(val title: String, val imageName: String, val artist: String)
 
 @Serializable
 data class MaimaiPlateResponse(val verlist: List<MaimaiBriefScore>)
@@ -130,7 +130,9 @@ object DXProberApi {
                                     kotlin.runCatching {
                                         val response = client.get<HttpResponse>(
                                             "https://maimai.wahlap.com/maimai-mobile/img/Music/" +
-                                                    songs.first { it.title == info.title }.image_file
+                                                    songs.first { it.title.clean() == info.title.clean() &&
+                                                            it.artist.clean() == info.basic_info.artist.clean()
+                                                    }.image_file
                                         )
                                         if (response.status == HttpStatusCode.OK) {
                                             response.readBytes().writeToFile(target)
@@ -155,7 +157,10 @@ object DXProberApi {
                                     kotlin.runCatching {
                                         val response = client.get<HttpResponse>(
                                             "${MaimaiConfig.zetarakuSite}/maimai/img/cover/" +
-                                                    songs.songs.first { it.title == info.title }.imageName
+                                                    songs.songs.first {
+                                                        it.title.clean() == info.title.clean() &&
+                                                            it.artist.clean() == info.basic_info.artist.clean()
+                                                    }.imageName
                                         )
                                         if (response.status == HttpStatusCode.OK) {
                                             response.readBytes().writeToFile(target)

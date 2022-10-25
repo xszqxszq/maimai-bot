@@ -56,11 +56,11 @@ object MaimaiImage {
         if (b50)
             info.charts.values.forEach { type ->
                 type.fastForEach {
-                    it.dxScore = getNewRa(it.ds, it.achievements)
+                    it.ra = getNewRa(it.ds, it.achievements)
                 }
             }
         val realRating =
-            if (b50) info.charts["sd"]!!.sumOf { it.dxScore } + info.charts["dx"]!!.sumOf { it.dxScore }
+            if (b50) info.charts["sd"]!!.sumOf { it.ra } + info.charts["dx"]!!.sumOf { it.ra }
             else info.rating + info.additional_rating
         return result.context2d {
             images["rating_base_${ratingColor(realRating, b50)}.png"] ?.let { ratingBg ->
@@ -318,17 +318,19 @@ object MaimaiImage {
 }
 
 
-const val DBC_SPACE = ' '
+const val DBC_SPACE = 32
 const val SBC_SPACE = 12288
 const val DBC_CHAR_START = 33
 const val DBC_CHAR_END = 126
+const val SBC_CHAR_START = 65281
+const val SBC_CHAR_END = 65374
 const val CONVERT_STEP = 65248
 fun String.toSBC(): String {
     val buf = StringBuilder(length)
     this.toCharArray().forEach {
         buf.append(
             when (it.code) {
-                DBC_SPACE.code -> SBC_SPACE
+                DBC_SPACE -> SBC_SPACE
                 in DBC_CHAR_START..DBC_CHAR_END -> it + CONVERT_STEP
                 else -> it
             }
@@ -336,7 +338,21 @@ fun String.toSBC(): String {
     }
     return buf.toString()
 }
-fun Char.isDBC() = this.code in DBC_SPACE.code..DBC_CHAR_END
+fun String.toDBC(): String {
+    val buf = StringBuilder(length)
+    this.toCharArray().forEach {
+        buf.append(
+            when (it.code) {
+                SBC_SPACE -> DBC_SPACE
+                in SBC_CHAR_START..SBC_CHAR_END -> it - CONVERT_STEP
+                else -> it
+            }
+        )
+    }
+    return buf.toString()
+}
+
+fun Char.isDBC() = this.code in DBC_SPACE..DBC_CHAR_END
 fun String.ellipsize(max: Int): String {
     var result = ""
     var cnt = 0
@@ -356,6 +372,16 @@ fun String.limitDecimal(limit: Int = 4): String {
         afterPart + "0".repeat(4 - afterPart.length)
     else
         afterPart.substring(0, limit)
+    return result
+}
+fun String.clean(): String {
+    if (this == "Link(CoF)")
+        return "Link"
+    var result = this.toDBC()
+    while ("  " in result)
+        result = result.replace("  ", " ")
+    if (result.isBlank())
+        return ""
     return result
 }
 

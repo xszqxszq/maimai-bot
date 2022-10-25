@@ -66,6 +66,7 @@ import kotlin.random.Random
 
 object MaimaiBotSharedData {
     val musics = mutableMapOf<String, MaimaiMusicInfo>()
+    var randomHotMusics = mutableListOf<MaimaiMusicInfo>()
     val aliases = mutableMapOf<String, List<String>>()
     val stats = mutableMapOf<String, List<MaimaiChartStat>>()
     var hotList = listOf<String>()
@@ -104,6 +105,9 @@ object MaimaiBot : KotlinPlugin(
                 File(tmpdir).resolve(it).mkdir()
             }
             extractResources()
+            reload()
+            if (MaimaiConfig.multiAccountsMode)
+                channel = channel.validate(validator)
             channel.subscribeMessages {
                 startsWith("b40") { username ->
                     notDenied(denied) {
@@ -196,7 +200,7 @@ object MaimaiBot : KotlinPlugin(
                     }
                 }
             }
-            arrayOf("真", "超", "超", "檄", "橙", "晓", "桃", "樱", "紫", "堇", "白", "雪", "辉", "舞", "熊", "华", "爽",
+            arrayOf("真", "超", "檄", "橙", "晓", "桃", "樱", "紫", "堇", "白", "雪", "辉", "舞", "熊", "华", "爽",
                 "煌", "").forEach { ver ->
                 arrayOf("极", "将", "神", "舞舞", "霸者").forEach { type ->
                     if (ver != "" || type == "霸者")
@@ -249,9 +253,12 @@ object MaimaiBot : KotlinPlugin(
                             }
                         }
                     }
-                    (level + "完成表") {
+                    startsWithSimple(level + "完成表") { _, username ->
                         notDenied(denied) {
-                            queryLevelRecord(level, "qq", sender.id.toString(), this)
+                            if (username.isBlank())
+                                queryLevelRecord(level, "qq", sender.id.toString(), this)
+                            else
+                                queryLevelRecord(level, "username", username, this)
                         }
                     }
                 }
@@ -280,9 +287,6 @@ object MaimaiBot : KotlinPlugin(
                     }
                 }
             }
-            reload()
-            if (MaimaiConfig.multiAccountsMode)
-                channel = channel.validate(validator)
             logger.info { "maimai-bot 插件加载完毕。" }
         }
         denied
@@ -784,7 +788,7 @@ object MaimaiBot : KotlinPlugin(
             musics[it.id.toString()]!!.ds[it.level_index] in leastDs .. highestDs
         }.map {
             val info = musics[it.id.toString()]!!
-            MaimaiPlayScore(it.achievements, info.ds[it.level_index], 0, it.fc, it.fs,
+            MaimaiPlayScore(it.achievements, info.ds[it.level_index], it.fc, it.fs,
                 info.level[it.level_index], it.level_index, levelIndex2Label(it.level_index),
                 getOldRa(info.ds[it.level_index], it.achievements), acc2rate(it.achievements),
                 it.id, it.title, it.type)
@@ -839,7 +843,7 @@ object MaimaiBot : KotlinPlugin(
         if (result.second == null || result.first != HttpStatusCode.OK)
             return@run
         val records = result.second!!.verlist.filter { it.level == level }.filter { it.achievements > 79.9999 }
-        val img = images["ds/$level.png"]!!
+        val img = images["ds/$level.png"]!!.clone()
         val raw = musics.values.map {
             it.level.mapIndexed { index, s -> if (s == level) Pair(it, index) else null }.filterNotNull()
         }.flatten()

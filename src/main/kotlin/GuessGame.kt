@@ -32,7 +32,7 @@ object GuessGame {
             quoteReply("本群有正在进行的猜歌哦~")
         } else {
             setStart(group.id)
-            getRandomHot() ?.let { selected ->
+            getRandomHot().let { selected ->
                 val stat = MaimaiBotSharedData.stats[selected.id]!!
                 quoteReply("请各位发挥自己的聪明才智，根据我的提示来猜一猜这是哪一首歌曲吧！\n" +
                         "作答时，歌曲 id、歌曲标题（请尽量回答完整）、歌曲别名都将被视作有效答案哦~\n" +
@@ -76,7 +76,7 @@ object GuessGame {
                             val answer = nextMessageEvent(expectedFinishAfter) {
                                 ansList.any { ans ->
                                     ans == message.content.lowercase() ||
-                                    ans in message.content.lowercase()
+                                            ans in message.content.lowercase()
                                             || (message.content.length >= 5 && message.content.lowercase() in ans)
                                 }
                             }
@@ -93,13 +93,19 @@ object GuessGame {
                         }
                     }
                 }
-            } ?: run {
-                reset(group.id)
             }
         }
     }
-    private fun getRandomHot() = MaimaiBotSharedData.musics
-        .getOrDefault(MaimaiBotSharedData.hotList.randomOrNull(), null)
+    private fun getRandomHot(): MaimaiMusicInfo {
+        if (MaimaiBotSharedData.randomHotMusics.isEmpty()) {
+            MaimaiBotSharedData.randomHotMusics = MaimaiBotSharedData.hotList.mapNotNull {
+                MaimaiBotSharedData.musics.getOrDefault(it, null)
+            }.shuffled().toMutableList()
+        }
+        val target = MaimaiBotSharedData.randomHotMusics.first()
+        MaimaiBotSharedData.randomHotMusics.removeFirst()
+        return target
+    }
     private fun getDescriptions(song: MaimaiMusicInfo, stat: List<MaimaiChartStat>) = listOf(
         "的版本为 ${song.basic_info.from}${if (song.basic_info.is_new) " (计入b15)" else ""}",
         "的艺术家为 ${song.basic_info.artist}",
