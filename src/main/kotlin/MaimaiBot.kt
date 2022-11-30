@@ -220,9 +220,31 @@ object MaimaiBot : KotlinPlugin(
                         pass
                     }
                 }
-                startsWith(withPrefix("info")) { musicId ->
+                startsWith(withPrefix("info")) { music ->
                     notDenied(denied) {
-                        generateMusicInfo(musicId, sender.id.toString(), "qq", this)
+                        if (musics.any { it.key == music }) {
+                            generateMusicInfo(music, sender.id.toString(), "qq", this)
+                        } else {
+                            musics.values.firstOrNull { it.basic_info.title.lowercase() == music.lowercase() } ?.let {
+                                generateMusicInfo(it.id, sender.id.toString(), "qq", this)
+                            } ?: run {
+                                val names = aliases.filter { (_, value) ->
+                                    var matched = false
+                                    value.fastForEach inner@ {
+                                        if (music.lowercase().trim() == it.lowercase()) {
+                                            matched = true
+                                            return@inner
+                                        }
+                                    }
+                                    matched
+                                }
+                                musics.values.firstOrNull { it.title in names.keys } ?.let {
+                                    generateMusicInfo(it.id, sender.id.toString(), "qq", this)
+                                } ?: run {
+                                    quoteReply("使用方法：info id/歌名/别名")
+                                }
+                            }
+                        }
                     }
                 }
             }
