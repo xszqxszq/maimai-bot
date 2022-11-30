@@ -312,3 +312,71 @@ dsList:
       scale: 1.0
       x: 14
       y: 12
+info:
+  bg: info.png
+  coverWidth: 200
+  coverRatio: 1.0
+  oldCols: 5
+  newCols: 0
+  gap: 96
+  pos:
+    cover:
+      fontName: ''
+      size: 200
+      scale: 1.0
+      x: 120
+      y: 155
+    title:
+      fontName: Source Han Sans CN Bold Bold
+      size: 36
+      scale: 1.0
+      x: 344
+      y: 185
+    artist:
+      fontName: Source Han Sans CN Bold Bold
+      size: 24
+      scale: 1.0
+      x: 344
+      y: 224
+    details:
+      fontName: Source Han Sans CN Bold Bold
+      size: 24
+      scale: 1.0
+      x: 344
+      y: 350
+    list:
+      fontName: ''
+      size: 0
+      scale: 1.0
+      x: 261
+      y: 435
+    diffInfo:
+      fontName: Source Han Sans CN Bold Bold
+      size: 24
+      scale: 1.0
+      x: 20
+      y: 30
+    ds:
+      fontName: Source Han Sans CN Bold Bold
+      size: 24
+      scale: 1.0
+      x: 650
+      y: 30
+    rateIcon:
+      fontName: ''
+      size: 0
+      scale: 0.8
+      x: 180
+      y: 2
+    fcIcon:
+      fontName: ''
+      size: 0
+      scale: 1.0
+      x: 300
+      y: 0
+    fsIcon:
+      fontName: ''
+      size: 0
+      scale: 1.0
+      x: 350
+      y: 0
