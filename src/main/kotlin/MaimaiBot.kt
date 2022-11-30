@@ -771,7 +771,7 @@ object MaimaiBot : KotlinPlugin(
                     musics[it.first.toString()]!!.ds[it.second] >= 13.7
         }.sortedByDescending { musics[it.first.toString()]!!.ds[it.second] }.take(5)
         if (hard.isNotEmpty()) {
-            reply += "\n高难度铺面："
+            reply += "\n高难度谱面："
             hard.forEach {
                 val info = musics[it.first.toString()]!!
                 reply += "\n${info.id}. ${info.title} ${difficulty2Name(it.second)} Lv. ${info.level[it.second]}" +
@@ -1099,7 +1099,7 @@ object MaimaiBot : KotlinPlugin(
                         }
                     }
                 } ?: run {
-                    drawTextRelative("您未游玩过该铺面",
+                    drawTextRelative("您未游玩过该谱面",
                         startX, nowY, config.pos.getValue("diffInfo"), Colors.WHITE)
                 }
             }
