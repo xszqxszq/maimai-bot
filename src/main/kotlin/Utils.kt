@@ -34,6 +34,7 @@ import net.mamoe.mirai.message.data.toPlainText
 import net.mamoe.mirai.utils.ExternalResource
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 
+val pass = {}
 
 suspend fun <T> MessageEvent.notDenied(permission: Permission, block: suspend () -> T): T? = when (this) {
     is GroupMessageEvent -> {

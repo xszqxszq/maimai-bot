@@ -3,6 +3,7 @@
 package xyz.xszq
 
 import com.soywiz.kds.iterators.fastForEach
+import com.soywiz.kmem.toIntCeil
 import com.soywiz.kmem.toIntFloor
 import com.soywiz.korim.bitmap.Bitmap
 import com.soywiz.korim.bitmap.Bitmap32
@@ -26,10 +27,8 @@ import com.soywiz.korio.file.std.tempVfs
 import com.soywiz.korio.file.std.toVfs
 import com.soywiz.korio.net.MimeType
 import com.soywiz.korio.net.mimeType
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import net.mamoe.mirai.console.data.AutoSavePluginConfig
 import net.mamoe.mirai.console.data.value
@@ -149,9 +148,11 @@ object MaimaiImage {
         if (!dsGenerated) {
             MaimaiBot.logger.info("正在生成定数表……")
             dsGenerated = true
-            levels.forEach {
-                images["ds/${it}.png"] = generateDsList(it)
-                tempVfs["ds/${it}.png"].writeBytes(images["ds/${it}.png"]!!.encode(PNG))
+            GlobalScope.launch {
+                levels.forEach {
+                    images["ds/${it}.png"] = generateDsList(it)
+                    tempVfs["ds/${it}.png"].writeBytes(images["ds/${it}.png"]!!.encode(PNG))
+                }
             }
         }
         // 释放内存
@@ -485,6 +486,7 @@ object MaimaiConfig: AutoSavePluginConfig("settings") {
         )
     )
     val zetarakuSite: String by value("https://dp4p6x0xfi5o9.cloudfront.net")
+    val prefix: String by value("")
 }
 @Serializable
 class MaimaiPicConfig(
@@ -493,7 +495,7 @@ class MaimaiPicConfig(
 
 @Serializable
 class MaimaiPicTheme(val b40: MaimaiPicConfig, val b50: MaimaiPicConfig, val scoreList: MaimaiPicConfig,
-                     val dsList: MaimaiPicConfig)
+                     val dsList: MaimaiPicConfig, val info: MaimaiPicConfig)
 
 val difficulty2Color = listOf(RGBA(124, 216, 79), RGBA(245, 187, 11), RGBA(255, 128, 140),
     RGBA(178, 91, 245), RGBA(244, 212, 255))

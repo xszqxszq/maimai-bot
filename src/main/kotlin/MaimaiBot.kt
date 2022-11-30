@@ -10,6 +10,7 @@ import com.soywiz.kmem.toIntCeil
 import com.soywiz.kmem.toIntFloor
 import com.soywiz.korim.bitmap.context2d
 import com.soywiz.korim.bitmap.sliceWithSize
+import com.soywiz.korim.color.Colors
 import com.soywiz.korim.color.RGBA
 import com.soywiz.korim.format.PNG
 import com.soywiz.korim.format.encode
@@ -91,7 +92,7 @@ object MaimaiBot : KotlinPlugin(
         PermissionService.INSTANCE.register(
             PermissionId("maimaiBot", "guess"), "禁用 maimai-bot 的所有功能")
     }
-    var channel: EventChannel<Event> = GlobalEventChannel
+    var channel: EventChannel<Event> = globalEventChannel()
     val yaml = Yaml {}
     val levels = listOf("1", "2", "3", "4", "5", "6", "7", "7+", "8", "8+", "9", "9+", "10", "10+", "11", "11+", "12",
         "12+", "13", "13+", "14", "14+", "15")
@@ -109,7 +110,7 @@ object MaimaiBot : KotlinPlugin(
             if (MaimaiConfig.multiAccountsMode)
                 channel = channel.validate(validator)
             channel.subscribeMessages {
-                startsWith("b40") { username ->
+                startsWith(withPrefix("b40")) { username ->
                     notDenied(denied) {
                         if (message.anyIsInstance<At>())
                             queryBest("qq", message.firstIsInstance<At>().target.toString(), false, this)
@@ -119,7 +120,7 @@ object MaimaiBot : KotlinPlugin(
                             queryBest("username", username, false, this)
                     }
                 }
-                startsWith("b50") { username ->
+                startsWith(withPrefix("b50")) { username ->
                     notDenied(denied) {
                         if (message.anyIsInstance<At>())
                             queryBest("qq", message.firstIsInstance<At>().target.toString(), true, this)
@@ -129,7 +130,7 @@ object MaimaiBot : KotlinPlugin(
                             queryBest("username", username, true, this)
                     }
                 }
-                startsWith("随个") { raw ->
+                startsWith(withPrefix("随个")) { raw ->
                     notDenied(denied) {
                         if (raw.isNotEmpty()) {
                             var difficulty: Int? = -1
@@ -145,27 +146,44 @@ object MaimaiBot : KotlinPlugin(
                         }
                     }
                 }
-                startsWithSimple("mai什么") { _, raw ->
-                    if ("加" in raw || "推" in raw) {
-                        getRandomForRatingUp(raw.filter { it.isDigit() }.toInt(), this)
-                    } else {
-                        getRandom(Random.nextInt(0, 4), "", this)
+                startsWith(withPrefix("mai什么")) { raw ->
+                    notDenied(denied) {
+                        if ("加" in raw || "推" in raw) {
+                            getRandomForRatingUp(raw.filter { it.isDigit() }.toInt(), 1, 100.5,this)
+                        } else {
+                            getRandom(Random.nextInt(0, 4), "", this)
+                        }
                     }
                 }
-                startsWith("随机推分金曲") {
-                    getRandomForRatingUp(event=this)
+                startsWith(withPrefix("随机推分金曲")) {
+                    notDenied(denied) {
+                        getRandomForRatingUp(event = this)
+                    }
                 }
-                startsWith("id") { id ->
+                startsWith(withPrefix("随机推分列表")) { raw ->
+                    notDenied(denied) {
+                        val args = raw.toArgsList()
+                        if (args.isEmpty()) {
+                            quoteReply("使用方法：随机推分列表 推分分数 [推荐谱面数量] [达成率]\n例：\n随机推分列表 2\n随机推分列表 3 20\n随机推分列表 1 15 99.5")
+                        } else {
+                            val score = args[0].toInt()
+                            val amount = args.getOrElse(1) { "10" }.toInt()
+                            val acc = args.getOrElse(2) { "100.5" }.toDouble()
+                            getRandomForRatingUp(score, amount, acc, this)
+                        }
+                    }
+                }
+                startsWith(withPrefix("id")) { id ->
                     notDenied(denied) {
                         searchById(id.filter { it.isDigit() || it.isLetter() }, this)
                     }
                 }
-                startsWith("查歌") { name ->
+                startsWith(withPrefix("查歌")) { name ->
                     notDenied(denied) {
                         searchByName(name, this)
                     }
                 }
-                startsWith("定数查歌") { rawArgs ->
+                startsWith(withPrefix("定数查歌")) { rawArgs ->
                     notDenied(denied) {
                         val args = rawArgs.toArgsList().mapDouble { it.toDouble() }
                         if (args.size == 1)
@@ -174,7 +192,7 @@ object MaimaiBot : KotlinPlugin(
                             searchByDS(args.first()..args.last(), this)
                     }
                 }
-                startsWith("分数线") { rawArgs ->
+                startsWith(withPrefix("分数线")) { rawArgs ->
                     notDenied(denied) {
                         val args = rawArgs.toArgsList()
                         getScoreRequirements(args, this)
@@ -182,18 +200,35 @@ object MaimaiBot : KotlinPlugin(
                 }
                 endsWith("是什么歌") { alias ->
                     notDenied(denied) {
-                        searchByAlias(alias, this)
+                        if (MaimaiConfig.prefix.isNotBlank()) {
+                            if (alias.startsWith(MaimaiConfig.prefix))
+                                searchByAlias(alias.substringAfterPrefix(MaimaiConfig.prefix), this)
+                        } else {
+                            searchByAlias(alias, this)
+                        }
+                        pass
                     }
                 }
-                endsWith("有什么别名") { id ->
+                endsWith(withPrefix("有什么别名")) { id ->
                     notDenied(denied) {
-                        searchAliasById(id.filter { it.isDigit() }, this)
+                        if (MaimaiConfig.prefix.isNotBlank()) {
+                            if (id.startsWith(MaimaiConfig.prefix))
+                                searchAliasById(id.substringAfterPrefix(MaimaiConfig.prefix).filter { it.isDigit() }, this)
+                        } else {
+                            searchAliasById(id.filter { it.isDigit() }, this)
+                        }
+                        pass
+                    }
+                }
+                startsWith(withPrefix("info")) { musicId ->
+                    notDenied(denied) {
+                        generateMusicInfo(musicId, sender.id.toString(), "qq", this)
                     }
                 }
             }
             arrayOf("绿", "黄", "红", "紫", "白").fastForEachWithIndex { difficulty, str ->
                 channel.subscribeMessages {
-                    startsWith(str + "id") { id ->
+                    startsWith(withPrefix(str + "id")) { id ->
                         notDenied(denied) {
                             searchByIdAndDifficulty(id, difficulty, this)
                         }
@@ -205,7 +240,7 @@ object MaimaiBot : KotlinPlugin(
                 arrayOf("极", "将", "神", "舞舞", "霸者").forEach { type ->
                     if (ver != "" || type == "霸者")
                         channel.subscribeMessages {
-                            startsWithSimple(ver + type + "进度") { _, username ->
+                            startsWithSimple(withPrefix(ver + type + "进度")) { _, username ->
                                 notDenied(denied) {
                                     if (username.isBlank())
                                         queryPlate(ver, type, "qq", sender.id.toString(), this)
@@ -216,7 +251,7 @@ object MaimaiBot : KotlinPlugin(
                         }
                     if (ver != "" && type != "霸者" && ver != "舞")
                         channel.subscribeMessages {
-                            startsWithSimple(ver + type + "完成表") { _, username ->
+                            startsWithSimple(withPrefix(ver + type + "完成表")) { _, username ->
                                 notDenied(denied) {
                                     if (username.isBlank())
                                         queryPlateRecord(ver, type, "qq", sender.id.toString(), this)
@@ -231,7 +266,7 @@ object MaimaiBot : KotlinPlugin(
                 levels.forEach { level ->
                     arrayOf("s", "s+", "ss", "ss+", "sss", "sss+", "ap", "ap+", "fc", "fc+", "fs", "fs+", "fdx", "fdx+",
                         "clear").forEach { type ->
-                        startsWithSimple(level + type + "进度") { _, username ->
+                        startsWithSimple(withPrefix(level + type + "进度")) { _, username ->
                             notDenied(denied) {
                                 if (username.isBlank())
                                     queryStateByLevel(level, type, "qq", sender.id.toString(), this)
@@ -240,20 +275,20 @@ object MaimaiBot : KotlinPlugin(
                             }
                         }
                     }
-                    startsWithSimple(level + "分数列表") { _, page ->
+                    startsWithSimple(withPrefix(level + "分数列表")) { _, page ->
                         notDenied(denied) {
                             queryRecordByLevel(level, "qq", sender.id.toString(),
                                 page.ifBlank { "0" }.toInt(), this)
                         }
                     }
-                    (level + "定数表") {
+                    startsWith(withPrefix(level + "定数表")) {
                         notDenied(denied) {
                             tempVfs["ds/${level}.png"].toExternalResource().use {
                                 quoteReply(it.uploadAsImage(subject))
                             }
                         }
                     }
-                    startsWithSimple(level + "完成表") { _, username ->
+                    startsWithSimple(withPrefix(level + "完成表")) { _, username ->
                         notDenied(denied) {
                             if (username.isBlank())
                                 queryLevelRecord(level, "qq", sender.id.toString(), this)
@@ -264,7 +299,7 @@ object MaimaiBot : KotlinPlugin(
                 }
             }
             channel.subscribeGroupMessages {
-                startsWith("猜歌设置") { option ->
+                startsWith(withPrefix("猜歌设置")) { option ->
                     if (sender.isOperator()) {
                         when (option.trim()) {
                             in listOf("启用", "开启", "允许") ->  {
@@ -279,7 +314,7 @@ object MaimaiBot : KotlinPlugin(
                         }
                     }
                 }
-                "猜歌" {
+                startsWith(withPrefix("猜歌")) {
                     notDenied(denied) {
                         notDenied(deniedGuess) {
                             GuessGame.handle(this)
@@ -352,6 +387,8 @@ object MaimaiBot : KotlinPlugin(
         }
         return result
     }
+
+    private fun withPrefix(s: String) = if (MaimaiConfig.prefix.isBlank()) s else MaimaiConfig.prefix + " " + s
 
     private suspend fun queryBest(type: String = "qq", id: String, b50: Boolean, event: MessageEvent) = event.run {
         val result = DXProberApi.getPlayerData(type, id, b50)
@@ -486,42 +523,53 @@ object MaimaiBot : KotlinPlugin(
             quoteReply("没有这样的乐曲。")
         }
     }
-    private suspend fun getRandomForRatingUp(target: Int = 1, event: MessageEvent) = event.run {
+    private suspend fun getRandomForRatingUp(target: Int = 1, amount: Int = 1, acc: Double = 100.5, event: MessageEvent) = event.run {
         val result = DXProberApi.getPlayerData("qq", sender.id.toString(), false)
         when (result.first) {
             HttpStatusCode.OK -> {
-                val b40chartIds = (result.second!!.charts["dx"]!! + result.second!!.charts["sd"]!!).map { it.song_id }
-                val nowRa25 = result.second!!.charts["sd"]!!.map { it.ra }.sorted()
-                val nowRa15 = result.second!!.charts["dx"]!!.map { it.ra }.sorted()
-                val nowRa25sum = nowRa25.sum()
-                val nowRa15sum = nowRa15.sum()
-                val selected = musics.values.filter {
-                    it.id.toInt() !in b40chartIds
-                }.map { m ->
+                val nowB25 = result.second!!.charts["sd"]!!.sortedBy { it.ra }.toMutableList()
+                val nowB15 = result.second!!.charts["dx"]!!.sortedBy { it.ra }.toMutableList()
+                val nowB25Sum = nowB25.sumOf { it.ra }
+                val nowB15Sum = nowB15.sumOf { it.ra }
+                val selected = musics.values.map { m ->
                     m.ds.mapIndexed { index, it ->
-                        val ra = getOldRa(it, 100.5)
+                        val ra = getOldRa(it, acc)
                         if (m.basic_info.is_new) {
-                            if (ra > nowRa15.first() && ((nowRa15 + listOf(ra)).sortedDescending().take(15).sum()
-                                    - nowRa15sum) in target..target + 10 ) Pair(m, index)
-                            else Pair(null, -1)
+                            if (ra > nowB15.first().ra &&
+                                (listOf(ra) + nowB15.filter { it.song_id != m.id.toInt() }.map { it.ra })
+                                    .sortedDescending().take(15).sum() - nowB15Sum in target..target + 10)
+                                    Pair(m, index)
+                            else
+                                Pair(null, -1)
                         } else {
-                            if (ra > nowRa25.first() && ((nowRa25 + listOf(ra)).sortedDescending().take(25).sum()
-                                        - nowRa25sum) in target..target + 10 ) Pair(m, index)
+                            if (ra > nowB25.first().ra &&
+                                (listOf(ra) + nowB25.filter { it.song_id != m.id.toInt() }.map { it.ra })
+                                    .sortedDescending().take(25).sum() - nowB25Sum in target..target + 10)
+                                Pair(m, index)
                             else Pair(null, -1)
                         }
                     }.filter { it.first != null }
-                }.flatten().randomOrNull()
-                selected ?.let {
-                    val info = getMusicInfoForSend(it.first!!, this)
-                    val ra = getOldRa(it.first!!.ds[it.second], 100.5)
-                    val up = if (it.first!!.basic_info.is_new)
-                            (nowRa15 + listOf(ra)).sortedDescending().take(15).sum() - nowRa15sum
-                    else (nowRa25 + listOf(ra)).sortedDescending().take(25).sum() - nowRa25sum
-                    info.add("\n此曲${difficulty2Name(it.second)}难度推至 100.5% 可加${
+                }.flatten().shuffled().take(amount)
+                if (selected.size == 1) {
+                    val selectedSong = selected.first()
+                    val info = getMusicInfoForSend(selectedSong.first!!, this)
+                    val ra = getOldRa(selectedSong.first!!.ds[selectedSong.second], acc)
+                    val up = if (selectedSong.first!!.basic_info.is_new)
+                        (listOf(ra) + nowB15.filter { it.song_id != selectedSong.first!!.id.toInt() }.map { it.ra })
+                            .sortedDescending().take(15).sum() - nowB15Sum
+                    else (listOf(ra) + nowB25.filter { it.song_id != selectedSong.first!!.id.toInt() }.map { it.ra })
+                        .sortedDescending().take(25).sum() - nowB25Sum
+                    info.add("\n此曲${difficulty2Name(selectedSong.second)}难度推至 100.5% 可加${
                         if (target == 1) " $up " else "至少 $target "
                     }分")
                     quoteReply(info.build())
-                } ?: run {
+                } else if (selected.size > 1) {
+                    quoteReply(buildString {
+                        selected.forEach {
+                            appendLine("${it.first!!.id}. ${it.first!!.title} (${difficulty2Name(it.second)})")
+                        }
+                    })
+                } else {
                     quoteReply("未找到符合标准的推分金曲。")
                 }
             }
@@ -962,6 +1010,79 @@ object MaimaiBot : KotlinPlugin(
             }
         }.sliceWithSize(0, 0, img.width, nowY + config.gap).extract().encode(PNG).toExternalResource().use {
             quoteReply(it.uploadAsImage(subject))
+        }
+    }
+    suspend fun generateMusicInfo(id: String, username: String, queryType: String,
+                                  event: MessageEvent) = withContext(Dispatchers.IO) {
+        val records = DXProberApi.getDataByVersion(queryType, username, getPlateVerList("all"))
+        when (records.first) {
+            HttpStatusCode.BadRequest -> event.quoteReply("用户名不存在，请确认用户名对应的玩家在 Diving-Fish 的舞萌 DX 查分器" +
+                    "（https://www.diving-fish.com/maimaidx/prober/）上已注册")
+            HttpStatusCode.Forbidden -> event.quoteReply("该玩家已禁止他人查询。如果是您本人账号且已绑定QQ号，请不带用户名再次尝试查询一次")
+        }
+        if (records.second == null || records.first != HttpStatusCode.OK)
+            return@withContext
+        val songInfo = musics[id]!!
+        val songRecords = records.second!!.verlist.filter { it.id.toString() == id }
+        val config = MaimaiImage.theme.info
+        val result = images[config.bg]!!.clone()
+        result.context2d {
+            val cover = resolveCover(songInfo.id.toInt()).readNativeImage().toBMP32()
+                .scaled(config.coverWidth, config.coverWidth, true)
+            val x = config.pos.getValue("cover").x
+            val y = config.pos.getValue("cover").y
+            drawImage(cover, x, y)
+            drawText(songInfo.basic_info.title, config.pos.getValue("title"))
+            drawText(songInfo.basic_info.artist, config.pos.getValue("artist"))
+            val details = buildString {
+                append("ID: $id")
+                append("　　")
+                append(songInfo.basic_info.genre)
+                append("　　")
+                append("BPM: " + songInfo.basic_info.bpm)
+            }
+            drawText(details, config.pos.getValue("details"))
+            val startX = config.pos.getValue("list").x
+            val startY = config.pos.getValue("list").y
+            for (i in 0 .. 4) {
+                val nowY = startY + i * config.gap
+                drawTextRelative(songInfo.ds[i].toString(),
+                    startX, nowY, config.pos.getValue("ds"), Colors.WHITE, TextAlignment.CENTER)
+                if (i >= songInfo.ds.size) {
+                    drawTextRelative("无该难度",
+                        startX, nowY, config.pos.getValue("diffInfo"), Colors.WHITE)
+                    continue
+                }
+                songRecords.firstOrNull { it.level_index == i } ?.let { record ->
+                    drawTextRelative("${record.achievements.toString().limitDecimal(4)}%",
+                        startX, nowY, config.pos.getValue("diffInfo"), Colors.WHITE)
+
+                    val rateIcon = config.pos.getValue("rateIcon")
+                    images["music_icon_${acc2rate(record.achievements)}.png"] ?.let {
+                        drawImage(it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
+                            startX + rateIcon.x, nowY + rateIcon.y)
+                    }
+                    if (record.fc.isNotEmpty()) {
+                        val fcIcon = config.pos.getValue("fcIcon")
+                        images["music_icon_${record.fc}.png"] ?.let {
+                            drawImage(it.toBMP32().scaleLinear(fcIcon.scale, fcIcon.scale),
+                                startX + fcIcon.x, nowY + fcIcon.y)
+                        }
+                    }
+                    if (record.fs.isNotEmpty()) {
+                        val fsIcon = config.pos.getValue("fsIcon")
+                        images["music_icon_${record.fs}.png"] ?.let {
+                            drawImage(it.toBMP32().scaleLinear(fsIcon.scale, fsIcon.scale),
+                                startX + fsIcon.x, nowY + fsIcon.y)
+                        }
+                    }
+                } ?: run {
+                    drawTextRelative("您未游玩过该铺面",
+                        startX, nowY, config.pos.getValue("diffInfo"), Colors.WHITE)
+                }
+            }
+        }.encode(PNG).toExternalResource().use {
+            event.quoteReply(it.uploadAsImage(event.subject))
         }
     }
 }
