@@ -26,7 +26,7 @@
 
 ## 部署指南
 
-[点我下载](https://github.com/xszqxszq/maimai-bot/releases/download/v1.3.1/maimai-bot-1.3.1.mirai.jar)
+[点我下载](https://github.com/xszqxszq/maimai-bot/releases/latest)
 
 本插件开箱即用，只需和其他插件一样放入 [MCL](https://github.com/iTXTech/mcl-installer) 或其他版本的 Mirai 控制台 的 ```plugins``` 目录即可。
 

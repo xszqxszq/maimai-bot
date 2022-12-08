@@ -77,7 +77,7 @@ object MaimaiBot : KotlinPlugin(
     JvmPluginDescription(
         id = "xyz.xszq.maimai-bot",
         name = "MaimaiBot",
-        version = "1.3.0",
+        version = "1.3.3",
     ) {
         author("xszqxszq")
     }
