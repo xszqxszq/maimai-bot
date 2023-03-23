@@ -39,10 +39,10 @@ object GuessGame {
                         "(致管理员：您可以使用“猜歌设置”指令开启或者关闭本群的猜歌功能)")
                 val descriptions = getDescriptions(selected, stat).shuffled().take(6)
                 val ansList = mutableListOf(selected.id, selected.title)
-                MaimaiBotSharedData.aliases[selected.title] ?.let { ansList.addAll(it) }
+                MaimaiBotSharedData.aliases[selected.id] ?.let { ansList.addAll(it) }
                 if (selected.type == "SD" && MaimaiBotSharedData.musics.containsKey(selected.id.toDXId())) {
                     ansList.add(selected.id.toDXId())
-                    MaimaiBotSharedData.aliases[MaimaiBotSharedData.musics[selected.id.toDXId()]!!.title]
+                    MaimaiBotSharedData.aliases[selected.id.toDXId()]
                         ?.let { ansList.addAll(it) }
                 }
                 val options = if (MaimaiImage.resolveCoverOrNull(selected.id) == null) 6 else 7

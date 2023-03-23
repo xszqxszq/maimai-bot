@@ -179,6 +179,20 @@ object DXProberApi {
         }
         MaimaiBot.logger.info("本次已缓存 $cnt 个歌曲封面。")
     }
+    suspend fun getAliases() {
+        MaimaiBot.logger.info("正在更新别名……")
+        kotlin.runCatching {
+            client.get<Map<String, List<String>>>(MaimaiConfig.xrayAliasUrl).forEach { (alias, ids) ->
+                ids.forEach ids@{ id ->
+                    if (id !in MaimaiBotSharedData.musics)
+                        return@ids
+                    MaimaiBotSharedData.aliases[id]!!.add(alias)
+                }
+            }
+        }.onFailure {
+            it.printStackTrace()
+        }
+    }
     suspend fun getPlayerData(type: String = "qq", id: String,
                               b50: Boolean = false): Pair<HttpStatusCode, MaimaiPlayerData?> {
         val payload = buildJsonObject {

@@ -8,6 +8,7 @@ import com.soywiz.kds.iterators.fastForEachWithIndex
 import com.soywiz.kds.mapDouble
 import com.soywiz.kmem.toIntCeil
 import com.soywiz.kmem.toIntFloor
+import com.soywiz.korim.bitmap.Bitmap
 import com.soywiz.korim.bitmap.context2d
 import com.soywiz.korim.bitmap.sliceWithSize
 import com.soywiz.korim.color.Colors
@@ -25,6 +26,8 @@ import com.soywiz.korio.util.toStringDecimal
 import io.ktor.http.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import net.mamoe.mirai.console.permission.PermissionId
@@ -54,7 +57,7 @@ import xyz.xszq.MaimaiImage.difficulty2Name
 import xyz.xszq.MaimaiImage.getOldRa
 import xyz.xszq.MaimaiImage.images
 import xyz.xszq.MaimaiImage.levelIndex2Label
-import xyz.xszq.MaimaiImage.resolveCover
+import xyz.xszq.MaimaiImage.resolveCoverCache
 import java.io.File
 import java.nio.file.FileSystems
 import java.nio.file.Files
@@ -68,7 +71,7 @@ import kotlin.random.Random
 object MaimaiBotSharedData {
     val musics = mutableMapOf<String, MaimaiMusicInfo>()
     var randomHotMusics = mutableListOf<MaimaiMusicInfo>()
-    val aliases = mutableMapOf<String, List<String>>()
+    val aliases = mutableMapOf<String, MutableSet<String>>()
     val stats = mutableMapOf<String, List<MaimaiChartStat>>()
     var hotList = listOf<String>()
 }
@@ -77,7 +80,7 @@ object MaimaiBot : KotlinPlugin(
     JvmPluginDescription(
         id = "xyz.xszq.maimai-bot",
         name = "MaimaiBot",
-        version = "1.3.3",
+        version = "1.3.4",
     ) {
         author("xszqxszq")
     }
@@ -228,18 +231,18 @@ object MaimaiBot : KotlinPlugin(
                             musics.values.firstOrNull { it.basic_info.title.lowercase() == music.lowercase() } ?.let {
                                 generateMusicInfo(it.id, sender.id.toString(), "qq", this)
                             } ?: run {
-                                val names = aliases.filter { (_, value) ->
+                                val id = aliases.filter { (_, value) ->
                                     var matched = false
-                                    value.fastForEach inner@ {
+                                    value.forEach inner@ {
                                         if (music.lowercase().trim() == it.lowercase()) {
                                             matched = true
                                             return@inner
                                         }
                                     }
                                     matched
-                                }
-                                musics.values.firstOrNull { it.title in names.keys } ?.let {
-                                    generateMusicInfo(it.id, sender.id.toString(), "qq", this)
+                                }.keys.firstOrNull()
+                                id ?.let {
+                                    generateMusicInfo(id, sender.id.toString(), "qq", this)
                                 } ?: run {
                                     quoteReply("使用方法：info id/歌名/别名")
                                 }
@@ -350,6 +353,9 @@ object MaimaiBot : KotlinPlugin(
     }
     private suspend fun reload() {
         musics.putAll(DXProberApi.getMusicList().associateBy { it.id })
+        musics.keys.forEach {
+            aliases[it] = mutableSetOf()
+        }
         stats.putAll(DXProberApi.getChartStat())
         hotList = stats.map { (id, stat) -> Pair(id, stat.sumOf { it.count ?: 0 }) }
             .sortedByDescending { it.second }.take(400).map { it.first }
@@ -357,17 +363,25 @@ object MaimaiBot : KotlinPlugin(
         MaimaiImage.theme = yaml.decodeFromString(
             MaimaiBot.resolveConfigFile("${MaimaiConfig.theme}/theme.yml").toVfs().readString())
         DXProberApi.getCovers()
+        DXProberApi.getAliases()
         MaimaiImage.reloadFonts()
         MaimaiImage.reloadImages()
         reloadAliases()
     }
-    private suspend fun reloadAliases() {
-        csvReader().openAsync(MaimaiBot.resolveConfigFile("aliases.csv")) {
-            readNext() // Exclude header
+    private fun reloadAliases() {
+        csvReader().open(MaimaiBot.resolveConfigFile("aliases.csv")) {
+            readNext()
             while (true) {
-                readNext() ?.let { row ->
-                    aliases[row.first()] = row.subList(1, row.size).filter { it.trim().isNotBlank() }
-                } ?: break
+                val row = readNext() ?: break
+                if (row.size < 2)
+                    continue
+                val musics = musics.values.filter { it.title == row.first() }
+                if (musics.isEmpty())
+                    continue
+                val names = row.subList(1, row.size).filter { it.trim().isNotBlank() }
+                musics.forEach {
+                    aliases[it.id]!!.addAll(names)
+                }
             }
         }
     }
@@ -478,17 +492,17 @@ object MaimaiBot : KotlinPlugin(
         }
     }
     private suspend fun searchByAlias(alias: String, event: MessageEvent) = event.run {
-        val names = aliases.filter { (_, value) ->
+        val id = aliases.filter { (_, value) ->
             var matched = false
-            value.fastForEach inner@ {
+            value.forEach inner@ {
                 if (alias.lowercase().trim() == it.lowercase()) {
                     matched = true
                     return@inner
                 }
             }
             matched
-        }
-        val matched = musics.values.filter { it.title in names.keys }
+        }.keys
+        val matched = id.mapNotNull { musics[it] }
         when {
             matched.size > 1 -> {
                 var result = "您要找的歌曲可能是："
@@ -502,8 +516,7 @@ object MaimaiBot : KotlinPlugin(
                 quoteReply(getMusicInfoForSend(selected, this, result).build())
             }
             else -> {
-                quoteReply("未找到歌曲。您可以联系 bot 号主添加新的别名，" +
-                        "或访问此网址添加：https://docs.qq.com/sheet/DWGNNYUdTT01PY2N1\n" +
+                quoteReply("未找到歌曲。您可以联系 bot 号主添加新的别名\n" +
                         "如果要按名称搜索，请使用如下命令：\n\t查歌 歌曲名称")
             }
         }
@@ -525,7 +538,7 @@ object MaimaiBot : KotlinPlugin(
     }
     private suspend fun searchAliasById(id: String, event: MessageEvent) = event.run {
         musics[id] ?.let { selected ->
-            val nowAliases = aliases[selected.title]
+            val nowAliases = aliases[id]
             if (nowAliases?.isNotEmpty() == true)
                 quoteReply("$id. ${selected.title} 有如下别名：\n" + nowAliases.joinToString("\n"))
             else
@@ -871,7 +884,7 @@ object MaimaiBot : KotlinPlugin(
             quoteReply(it.uploadAsImage(subject))
         }
     }
-    suspend fun generateDsList(level: String) = withContext(Dispatchers.IO) {
+    suspend fun generateDsList(level: String, bg: Bitmap, lock: Mutex) = withContext(Dispatchers.IO) {
         val raw = musics.values.map {
             it.level.mapIndexed { index, s -> if (s == level) Pair(it, index) else null }.filterNotNull()
         }.flatten()
@@ -879,20 +892,25 @@ object MaimaiBot : KotlinPlugin(
             raw.filter { m -> m.first.ds[m.second] == d }
         }
         val config = MaimaiImage.theme.dsList
-        val result = images[config.bg]!!.clone()
         var nowY = config.pos.getValue("list").y
-        result.context2d {
-            drawText(level + "定数表", config.pos.getValue("title"), align=TextAlignment.CENTER)
+        bg.context2d {
+            lock.withLock {
+                drawText(level + "定数表", config.pos.getValue("title"), align = TextAlignment.CENTER)
+            }
             songs.forEach { (ds, l) ->
-                drawTextRelative(ds.toString(), config.pos.getValue("list").x, nowY, config.pos.getValue("ds"))
+                lock.withLock {
+                    drawTextRelative(ds.toString(), config.pos.getValue("list").x, nowY, config.pos.getValue("ds"))
+                }
                 l.forEachIndexed { index, (m, difficulty) ->
                     val row = index / config.oldCols
                     val col = index % config.oldCols
-                    val coverRaw = resolveCover(m.id.toInt()).readNativeImage().toBMP32()
+                    val coverRaw = resolveCoverCache(m.id.toInt()).toBMP32()
                         .scaled(config.coverWidth, config.coverWidth, true)
                     val newHeight = (coverRaw.width / config.coverRatio).roundToInt()
-                    val cover = coverRaw.sliceWithSize(0, (coverRaw.height - newHeight) / 2,
-                        coverRaw.width, newHeight).extract()
+                    val cover = coverRaw.sliceWithSize(
+                        0, (coverRaw.height - newHeight) / 2,
+                        coverRaw.width, newHeight
+                    ).extract()
                     val x = config.pos.getValue("list").x + col * (config.coverWidth + config.gap)
                     val y = nowY + row * (config.coverWidth + config.gap)
                     fillStyle = difficulty2Color[difficulty]
@@ -901,7 +919,7 @@ object MaimaiBot : KotlinPlugin(
                 }
                 nowY += (l.size * 1.0 / config.oldCols).toIntCeil() * (config.coverWidth + config.gap) + config.gap
             }
-        }.sliceWithSize(0, 0, result.width, nowY + config.gap).extract()
+        }.sliceWithSize(0, 0, bg.width, nowY + config.gap).extract()
     }
     suspend fun queryLevelRecord(level: String, queryType: String, id: String, event: MessageEvent) = event.run {
         val result = DXProberApi.getDataByVersion(queryType, id, getPlateVerList("all"))
@@ -913,7 +931,8 @@ object MaimaiBot : KotlinPlugin(
         if (result.second == null || result.first != HttpStatusCode.OK)
             return@run
         val records = result.second!!.verlist.filter { it.level == level }.filter { it.achievements > 79.9999 }
-        val img = images["ds/$level.png"]!!.clone()
+
+        val img = if (MaimaiConfig.enableMemCache) images["ds/$level.png"]!!.clone() else tempVfs["ds/$level.png"].readNativeImage()
         val raw = musics.values.map {
             it.level.mapIndexed { index, s -> if (s == level) Pair(it, index) else null }.filterNotNull()
         }.flatten()
@@ -976,7 +995,7 @@ object MaimaiBot : KotlinPlugin(
                 l.forEachIndexed { index, m ->
                     val row = index / config.oldCols
                     val col = index % config.oldCols
-                    val coverRaw = resolveCover(m.id.toInt()).readNativeImage().toBMP32()
+                    val coverRaw = resolveCoverCache(m.id.toInt()).toBMP32()
                         .scaled(config.coverWidth, config.coverWidth, true)
                     val newHeight = (coverRaw.width / config.coverRatio).roundToInt()
                     val cover = coverRaw.sliceWithSize(0, (coverRaw.height - newHeight) / 2,
@@ -1049,7 +1068,7 @@ object MaimaiBot : KotlinPlugin(
         val config = MaimaiImage.theme.info
         val result = images[config.bg]!!.clone()
         result.context2d {
-            val cover = resolveCover(songInfo.id.toInt()).readNativeImage().toBMP32()
+            val cover = resolveCoverCache(songInfo.id.toInt()).toBMP32()
                 .scaled(config.coverWidth, config.coverWidth, true)
             val x = config.pos.getValue("cover").x
             val y = config.pos.getValue("cover").y

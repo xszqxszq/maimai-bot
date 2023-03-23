@@ -5,16 +5,16 @@ plugins {
     kotlin("jvm") version kotlinVersion
     kotlin("plugin.serialization") version kotlinVersion
 
-    id("net.mamoe.mirai-console") version "2.13.0-RC"
+    id("net.mamoe.mirai-console") version "2.14.0"
 }
 
 group = "xyz.xszq"
-version = "1.3.3"
+version = "1.3.4"
 val korlibsVersion = "2.7.0"
 val ktorVersion = "1.6.8"
 
 repositories {
-// maven("https://maven.aliyun.com/repository/public")
+    //maven("https://maven.aliyun.com/repository/public")
     mavenCentral()
 }
 
