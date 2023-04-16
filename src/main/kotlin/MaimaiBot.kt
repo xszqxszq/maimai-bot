@@ -22,7 +22,7 @@ import com.soywiz.korio.file.std.tmpdir
 import com.soywiz.korio.file.std.toVfs
 import com.soywiz.korio.file.writeToFile
 import com.soywiz.korio.lang.substr
-import com.soywiz.korio.util.toStringDecimal
+import com.soywiz.korma.math.roundDecimalPlaces
 import io.ktor.http.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -80,7 +80,7 @@ object MaimaiBot : KotlinPlugin(
     JvmPluginDescription(
         id = "xyz.xszq.maimai-bot",
         name = "MaimaiBot",
-        version = "1.3.4",
+        version = "1.3.5",
     ) {
         author("xszqxszq")
     }
@@ -357,7 +357,7 @@ object MaimaiBot : KotlinPlugin(
             aliases[it] = mutableSetOf()
         }
         stats.putAll(DXProberApi.getChartStat())
-        hotList = stats.map { (id, stat) -> Pair(id, stat.sumOf { it.count ?: 0 }) }
+        hotList = stats.map { (id, stat) -> Pair(id, stat.sumOf { it.cnt ?: .0 }) }
             .sortedByDescending { it.second }.take(400).map { it.first }
         MaimaiConfig.reload()
         MaimaiImage.theme = yaml.decodeFromString(
@@ -472,9 +472,9 @@ object MaimaiBot : KotlinPlugin(
                 if (chart.charter != "-")
                     result.add("\n谱师：${chart.charter}")
                 stats[id] ?.let { stat ->
-                    result.add("\n难易度：${stat[difficulty].tag}")
+                    result.add("\n查分器拟合定数：${stat[difficulty].fit_diff!!.roundDecimalPlaces(1)}")
                     stat[difficulty].avg ?.let { avg ->
-                        result.add("\n平均达成率：${avg.toStringDecimal(2)}%")
+                        result.add("\n平均达成率：${avg.roundDecimalPlaces(2)}%")
                     }
                 }
             }
@@ -780,8 +780,7 @@ object MaimaiBot : KotlinPlugin(
             }
         }
         val hard = (remains[3] + remains[4]).filter {
-            stats[it.first.toString()]?.get(it.second)?.tag?.equals("Very Hard") == true &&
-                    musics[it.first.toString()]!!.ds[it.second] >= 13.7
+            musics[it.first.toString()]!!.ds[it.second] >= 14.6
         }.sortedByDescending { musics[it.first.toString()]!!.ds[it.second] }.take(5)
         if (hard.isNotEmpty()) {
             reply += "\n高难度谱面："
@@ -789,7 +788,7 @@ object MaimaiBot : KotlinPlugin(
                 val info = musics[it.first.toString()]!!
                 reply += "\n${info.id}. ${info.title} ${difficulty2Name(it.second)} Lv. ${info.level[it.second]}" +
                         "(${data.find { d -> d.id == it.first && d.level_index == it.second }
-                            ?.achievements?.toStringDecimal(4)?:"0.0000"}%)"
+                            ?.achievements?.roundDecimalPlaces(4)?:"0.0000"}%)"
             }
         }
         val pc = (remains.sumOf { it.size } * 1.0 / 3).toIntCeil()
@@ -953,10 +952,10 @@ object MaimaiBot : KotlinPlugin(
                         val rateIcon = config.pos.getValue("rateIcon")
                         fillStyle = RGBA(0, 0, 0, 128)
                         fillRect(x, y, config.coverWidth, config.coverWidth)
-                        images["music_icon_${acc2rate(record.achievements)}.png"] ?.let {
-                            drawImage(it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
-                                x + rateIcon.x, y + rateIcon.y)
-                        }
+                        drawImage(
+                            MaimaiImage.resolveImageCache("music_icon_${acc2rate(record.achievements)}.png")
+                                .toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
+                            x + rateIcon.x, y + rateIcon.y)
                     }
                 }
                 nowY += (l.size * 1.0 / config.oldCols).toIntCeil() * (config.coverWidth + config.gap) + config.gap
@@ -986,7 +985,7 @@ object MaimaiBot : KotlinPlugin(
         }
         val records = result.second!!.verlist.filter { it.achievements > 79.9999 }
         val config = MaimaiImage.theme.dsList
-        val img = images[config.bg]!!.clone()
+        val img = MaimaiImage.resolveImageCache(config.bg).clone()
         var nowY = config.pos.getValue("list").y
         img.context2d {
             drawText("${vName}${type}完成表", config.pos.getValue("title"), align=TextAlignment.CENTER)
@@ -1011,7 +1010,7 @@ object MaimaiBot : KotlinPlugin(
                                     fillRect(x, y, config.coverWidth, config.coverWidth)
                                 }
                                 val rateIcon = config.pos.getValue("rateIcon")
-                                images["music_icon_${acc2rate(record.achievements)}.png"]?.let {
+                                MaimaiImage.resolveImageCache("music_icon_${acc2rate(record.achievements)}.png")?.let {
                                     drawImage(
                                         it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
                                         x + rateIcon.x, y + rateIcon.y
@@ -1024,7 +1023,7 @@ object MaimaiBot : KotlinPlugin(
                                     fillRect(x, y, config.coverWidth, config.coverWidth)
                                 }
                                 val rateIcon = config.pos.getValue("fcIcon")
-                                images["music_icon_${record.fc}.png"]?.let {
+                                MaimaiImage.resolveImageCache("music_icon_${record.fc}.png")?.let {
                                     drawImage(
                                         it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
                                         x + rateIcon.x, y + rateIcon.y
@@ -1037,7 +1036,7 @@ object MaimaiBot : KotlinPlugin(
                                     fillRect(x, y, config.coverWidth, config.coverWidth)
                                 }
                                 val rateIcon = config.pos.getValue("fcIcon")
-                                images["music_icon_${record.fs}.png"]?.let {
+                                MaimaiImage.resolveImageCache("music_icon_${record.fs}.png")?.let {
                                     drawImage(
                                         it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
                                         x + rateIcon.x, y + rateIcon.y
@@ -1066,7 +1065,7 @@ object MaimaiBot : KotlinPlugin(
         val songInfo = musics[id]!!
         val songRecords = records.second!!.verlist.filter { it.id.toString() == id }
         val config = MaimaiImage.theme.info
-        val result = images[config.bg]!!.clone()
+        val result = MaimaiImage.resolveImageCache(config.bg).clone()
         result.context2d {
             val cover = resolveCoverCache(songInfo.id.toInt()).toBMP32()
                 .scaled(config.coverWidth, config.coverWidth, true)
@@ -1099,20 +1098,20 @@ object MaimaiBot : KotlinPlugin(
                         startX, nowY, config.pos.getValue("diffInfo"), Colors.WHITE)
 
                     val rateIcon = config.pos.getValue("rateIcon")
-                    images["music_icon_${acc2rate(record.achievements)}.png"] ?.let {
+                    MaimaiImage.resolveImageCache("music_icon_${acc2rate(record.achievements)}.png") ?.let {
                         drawImage(it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
                             startX + rateIcon.x, nowY + rateIcon.y)
                     }
                     if (record.fc.isNotEmpty()) {
                         val fcIcon = config.pos.getValue("fcIcon")
-                        images["music_icon_${record.fc}.png"] ?.let {
+                        MaimaiImage.resolveImageCache("music_icon_${record.fc}.png") ?.let {
                             drawImage(it.toBMP32().scaleLinear(fcIcon.scale, fcIcon.scale),
                                 startX + fcIcon.x, nowY + fcIcon.y)
                         }
                     }
                     if (record.fs.isNotEmpty()) {
                         val fsIcon = config.pos.getValue("fsIcon")
-                        images["music_icon_${record.fs}.png"] ?.let {
+                        MaimaiImage.resolveImageCache("music_icon_${record.fs}.png") ?.let {
                             drawImage(it.toBMP32().scaleLinear(fsIcon.scale, fsIcon.scale),
                                 startX + fsIcon.x, nowY + fsIcon.y)
                         }

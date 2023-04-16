@@ -3,6 +3,7 @@ package xyz.xszq
 import com.soywiz.korim.format.PNG
 import com.soywiz.korim.format.encode
 import com.soywiz.korim.format.readNativeImage
+import com.soywiz.korma.math.roundDecimalPlaces
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -111,14 +112,12 @@ object GuessGame {
         "的艺术家为 ${song.basic_info.artist}",
         "的分类为 ${song.basic_info.genre}",
         "的 BPM 为 ${song.basic_info.bpm}",
-        "的红谱等级为 ${song.level[2]}，查分器统计难度为${tagEnToCh(stat[2].tag!!)}",
-        "的紫谱等级为 ${song.level[3]}，查分器统计难度为${tagEnToCh(stat[3].tag!!)}",
+        "的红谱等级为 ${song.level[2]}，查分器拟合定数为${stat[2].fit_diff!!.roundDecimalPlaces(1)}",
+        "的紫谱等级为 ${song.level[3]}，查分器拟合定数为${stat[3].fit_diff!!.roundDecimalPlaces(1)}",
         "的紫谱谱师为 ${song.charts[3].charter}",
         "${if (song.level.size == 4) "没有" else "有"}白谱",
-        // Don't know whether this will have wrong result for Destroyer SD lol
-        "${if (song.type == "DX" || MaimaiBotSharedData.musics
-                .containsKey(song.id.toDXId()))
-            "有" else "没有"} DX 谱面"
+        if (song.type=="DX") "是 DX 谱面" else if (MaimaiBotSharedData.musics
+            .containsKey(song.id.toDXId())) "既有 DX 谱面也有标准谱面" else "没有 DX 谱面"
     )
     private fun tagEnToCh(tag: String) = when (tag) {
         "Very Easy" -> "十分简单"

@@ -57,10 +57,23 @@ data class MaimaiChartNotes(val tap: Int, val hold: Int, val slide: Int, val bre
         }
     }
 }
+
+@Serializable
+data class MaimaiCharStatResponse(
+    val charts: HashMap<String, List<MaimaiChartStat>>,
+    val diff_data: HashMap<String, MaimaiChartLevelStat>
+)
 @Serializable
 data class MaimaiChartStat(
-    val count: Int ?= null, val avg: Double ?= null, val sssp_count: Int ?= null, val tag: String ?= null,
-    val v: Int ?= null, val t: Int ?= null
+    val cnt: Double ?= null, val diff: String ?= null, val fit_diff: Double ?= null,
+    val avg: Double ?= null, val avg_dx: Double ?= null, val std_dev: Double ?= null,
+    val dist: List<Double> ?= null, val fc_dist: List<Double> ?= null
+)
+@Serializable
+data class MaimaiChartLevelStat(
+    val achievements: Double,
+    val dist: List<Double>,
+    val fc_dist: List<Double>
 )
 
 @Serializable
@@ -230,12 +243,12 @@ object DXProberApi {
         }
         return Pair(HttpStatusCode.BadGateway, null)
     }
-    suspend fun getChartStat(): Map<String, List<MaimaiChartStat>> {
+    suspend fun getChartStat(): HashMap<String, List<MaimaiChartStat>> {
         kotlin.runCatching {
-            return client.get("$site/api/maimaidxprober/chart_stats")
+            return client.get<MaimaiCharStatResponse>("$site/api/maimaidxprober/chart_stats").charts
         }.onFailure {
             it.printStackTrace()
         }
-        return mapOf()
+        return hashMapOf()
     }
 }

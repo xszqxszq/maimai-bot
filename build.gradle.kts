@@ -1,15 +1,15 @@
 @file:Suppress("SpellCheckingInspection")
 
 plugins {
-    val kotlinVersion = "1.6.10"
+    val kotlinVersion = "1.8.10"
     kotlin("jvm") version kotlinVersion
     kotlin("plugin.serialization") version kotlinVersion
 
-    id("net.mamoe.mirai-console") version "2.14.0"
+    id("net.mamoe.mirai-console") version "2.15.0-M1"
 }
 
 group = "xyz.xszq"
-version = "1.3.4"
+version = "1.3.5"
 val korlibsVersion = "2.7.0"
 val ktorVersion = "1.6.8"
 

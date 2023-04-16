@@ -29,13 +29,16 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.Serializable
 import net.mamoe.mirai.console.data.AutoSavePluginConfig
 import net.mamoe.mirai.console.data.value
 import xyz.xszq.MaimaiBot.generateDsList
 import xyz.xszq.MaimaiBot.levels
 import xyz.xszq.MaimaiImage.resolveCoverCache
+import xyz.xszq.MaimaiImage.resolveImageCache
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -53,7 +56,7 @@ object MaimaiImage {
     var dsGenerated = false
     suspend fun generateBest(info: MaimaiPlayerData, b50: Boolean): ByteArray {
         val config = if (b50) theme.b50 else theme.b40
-        val result = images[config.bg]!!.clone()
+        val result = resolveImageCache(config.bg).clone()
         if (b50)
             info.charts.values.forEach { type ->
                 type.fastForEach {
@@ -64,7 +67,7 @@ object MaimaiImage {
             if (b50) info.charts["sd"]!!.sumOf { it.ra } + info.charts["dx"]!!.sumOf { it.ra }
             else info.rating + info.additional_rating
         return result.context2d {
-            images["rating_base_${ratingColor(realRating, b50)}.png"] ?.let { ratingBg ->
+            resolveImageCache("rating_base_${ratingColor(realRating, b50)}.png").let { ratingBg ->
                 drawImage(ratingBg, config.pos.getValue("ratingBg").x, config.pos.getValue("ratingBg").y)
             }
             drawText(info.nickname.toSBC(), config.pos.getValue("name"))
@@ -83,13 +86,11 @@ object MaimaiImage {
     suspend fun generateList(level: String, info: MaimaiPlayerData, l: List<MaimaiPlayScore>,
                              nowPage: Int, totalPage: Int): ByteArray {
         val config = theme.scoreList
-        val result = images[config.bg]!!.clone()
+        val result = resolveImageCache(config.bg).clone()
         val realRating = info.rating + info.additional_rating
         return result.context2d {
             drawText(info.nickname.toSBC(), config.pos.getValue("name"))
-            images["rating_base_${ratingColor(realRating, false)}.png"] ?.let { ratingBg ->
-                drawImage(ratingBg, config.pos.getValue("ratingBg").x, config.pos.getValue("ratingBg").y)
-            }
+            drawImage(resolveImageCache("rating_base_${ratingColor(realRating, false)}.png"), config.pos.getValue("ratingBg").x, config.pos.getValue("ratingBg").y)
             drawText(info.nickname.toSBC(), config.pos.getValue("name"))
             drawText(realRating.toString().toList().joinToString(" "), config.pos.getValue("dxrating"),
                 Colors.YELLOW, TextAlignment.RIGHT)
@@ -104,15 +105,15 @@ object MaimaiImage {
     suspend fun reloadImages() {
         MaimaiBot.logger.info("正在载入图片中……")
         // 载入当前主题的所有图片，避免生成图片时频繁读取小图片
-        MaimaiBot.resolveConfigFile(MaimaiConfig.theme).toVfs().listRecursive().collect {
-            if (it.mimeType() in listOf(MimeType.IMAGE_JPEG, MimeType.IMAGE_PNG)) {
-                runCatching {
-                    images[it.baseName] = it.readNativeImage()
-                }.onFailure { e ->
-                    e.printStackTrace()
+            MaimaiBot.resolveConfigFile(MaimaiConfig.theme).toVfs().listRecursive().collect {
+                if (it.mimeType() in listOf(MimeType.IMAGE_JPEG, MimeType.IMAGE_PNG)) {
+                    runCatching {
+                        images[it.baseName] = it.readNativeImage()
+                    }.onFailure { e ->
+                        e.printStackTrace()
+                    }
                 }
             }
-        }
         val lock = Mutex()
         // 载入封面
         if (MaimaiConfig.enableMemCache) {
@@ -134,19 +135,22 @@ object MaimaiImage {
             }
         }
         if (!dsGenerated) {
-            MaimaiBot.logger.info("正在生成定数表……")
+            MaimaiBot.logger.info("正在生成定数表${if (MaimaiConfig.enableMemCache) "（请耐心等待）" else ""}……")
             dsGenerated = true
+            val semaphore = Semaphore(if (MaimaiConfig.enableMemCache) 16 else 1)
             coroutineScope {
                 levels.forEachIndexed { ind, level ->
                     launch {
-                        val bg = lock.withLock {
-                            images[theme.dsList.bg]!!.clone()
-                        }
-                        val nowDs = generateDsList(level, bg, lock)
-                        tempVfs["ds/${level}.png"].writeBytes(nowDs.encode(PNG))
-                        if (MaimaiConfig.enableMemCache) {
-                            lock.withLock {
-                                images["ds/${level}.png"] = nowDs
+                        semaphore.withPermit {
+                            val bg = lock.withLock {
+                                resolveImageCache(theme.dsList.bg).clone()
+                            }
+                            val nowDs = generateDsList(level, bg, lock)
+                            tempVfs["ds/${level}.png"].writeBytes(nowDs.encode(PNG))
+                            if (MaimaiConfig.enableMemCache) {
+                                lock.withLock {
+                                    images["ds/${level}.png"] = nowDs
+                                }
                             }
                         }
                     }
@@ -299,12 +303,20 @@ object MaimaiImage {
         }
         return (ds * (min(100.5, achievement) / 100) * baseRa).toIntFloor()
     }
+    suspend fun resolveImageCache(path: String): Bitmap {
+        return if (images.containsKey(path)) {
+            images[path]!!
+        } else {
+            MaimaiBot.resolveConfigFile(path).toVfs().readNativeImage()
+        }
+
+    }
     suspend fun resolveCoverCache(id: Int): Bitmap {
         return if (MaimaiConfig.enableMemCache) {
             if (images.containsKey("$id.jpg"))
                 images["$id.jpg"]!!
             else
-                images["default_cover.png"]!!
+                resolveImageCache("default_cover.png")
         } else {
             resolveCover(id).readNativeImage()
         }
@@ -428,9 +440,7 @@ suspend fun Context2d.drawCharts(charts: List<MaimaiPlayScore>, cols: Int, start
         drawImage(cover, x, y)
         if (chart.title != "") {
             val label = config.pos.getValue("label")
-            MaimaiImage.images["label_${chart.level_label.replace(":", "")}.png"] ?.let {
-                drawImage(it.toBMP32().scaleLinear(label.scale, label.scale), x + label.x, y + label.y)
-            }
+            drawImage(resolveImageCache("label_${chart.level_label.replace(":", "")}.png").toBMP32().scaleLinear(label.scale, label.scale), x + label.x, y + label.y)
 
             // Details
             drawTextRelative(chart.title.ellipsize(12), x, y, config.pos.getValue("chTitle"), Colors.WHITE)
@@ -440,16 +450,14 @@ suspend fun Context2d.drawCharts(charts: List<MaimaiPlayScore>, cols: Int, start
             drawTextRelative("#${index + 1}(${chart.type})", x, y, config.pos.getValue("chRank"), Colors.WHITE)
 
             val rateIcon = config.pos.getValue("rateIcon")
-            MaimaiImage.images["music_icon_${chart.rate}.png"] ?.let {
-                drawImage(it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
-                    x + rateIcon.x, y + rateIcon.y)
-            }
+            drawImage(
+                resolveImageCache("music_icon_${chart.rate}.png").toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
+                x + rateIcon.x, y + rateIcon.y)
             if (chart.fc.isNotEmpty()) {
                 val fcIcon = config.pos.getValue("fcIcon")
-                MaimaiImage.images["music_icon_${chart.fc}.png"] ?.let {
-                    drawImage(it.toBMP32().scaleLinear(fcIcon.scale, fcIcon.scale),
-                        x + fcIcon.x, y + fcIcon.y)
-                }
+                drawImage(
+                    resolveImageCache("music_icon_${chart.fc}.png").toBMP32().scaleLinear(fcIcon.scale, fcIcon.scale),
+                    x + fcIcon.x, y + fcIcon.y)
             }
         }
     }
