@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "xyz.xszq"
-version = "1.3.5"
+version = "1.3.6"
 val korlibsVersion = "2.7.0"
 val ktorVersion = "1.6.8"
 

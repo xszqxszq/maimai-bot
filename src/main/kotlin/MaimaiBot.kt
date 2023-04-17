@@ -80,7 +80,7 @@ object MaimaiBot : KotlinPlugin(
     JvmPluginDescription(
         id = "xyz.xszq.maimai-bot",
         name = "MaimaiBot",
-        version = "1.3.5",
+        version = "1.3.6",
     ) {
         author("xszqxszq")
     }
@@ -1022,6 +1022,8 @@ object MaimaiBot : KotlinPlugin(
                                     fillStyle = RGBA(0, 0, 0, 128)
                                     fillRect(x, y, config.coverWidth, config.coverWidth)
                                 }
+                                if (record.fc.isEmpty())
+                                    return@let
                                 val rateIcon = config.pos.getValue("fcIcon")
                                 MaimaiImage.resolveImageCache("music_icon_${record.fc}.png")?.let {
                                     drawImage(
@@ -1035,6 +1037,8 @@ object MaimaiBot : KotlinPlugin(
                                     fillStyle = RGBA(0, 0, 0, 128)
                                     fillRect(x, y, config.coverWidth, config.coverWidth)
                                 }
+                                if (record.fs.isEmpty())
+                                    return@let
                                 val rateIcon = config.pos.getValue("fcIcon")
                                 MaimaiImage.resolveImageCache("music_icon_${record.fs}.png")?.let {
                                     drawImage(
