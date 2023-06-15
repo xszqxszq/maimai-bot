@@ -116,6 +116,7 @@ object MaimaiBot : KotlinPlugin(
             }
             extractResources()
             reload()
+            admin
             if (MaimaiConfig.multiAccountsMode)
                 channel = channel.validate(validator)
             channel.subscribeMessages {
