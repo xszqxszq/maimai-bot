@@ -21,7 +21,7 @@ import kotlinx.serialization.json.*
 
 
 @Serializable
-data class MaimaiPlayerData(val nickname: String, val rating: Int, val additional_rating: Int, val username: String,
+data class MaimaiPlayerData(val nickname: String, val rating: Int, val additional_rating: Int ?= null, val username: String,
                  val charts: Map<String, List<MaimaiPlayScore>>)
 
 @Serializable
@@ -210,8 +210,7 @@ object DXProberApi {
                               b50: Boolean = false): Pair<HttpStatusCode, MaimaiPlayerData?> {
         val payload = buildJsonObject {
             put(type, id)
-            if (b50)
-                put("b50", true)
+            put("b50", true)
         }
         kotlin.runCatching {
             val result: HttpResponse = client.post("$site/api/maimaidxprober/query/player") {

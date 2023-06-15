@@ -54,32 +54,32 @@ object MaimaiImage {
     val sysFonts = MultiPlatformNativeSystemFontProvider()
     lateinit var theme: MaimaiPicTheme
     var dsGenerated = false
-    suspend fun generateBest(info: MaimaiPlayerData, b50: Boolean): ByteArray {
-        val config = if (b50) theme.b50 else theme.b40
+    suspend fun generateBest(info: MaimaiPlayerData): ByteArray {
+        val config = theme.b50
         val result = resolveImageCache(config.bg).clone()
-        if (b50)
-            info.charts.values.forEach { type ->
-                type.fastForEach {
-                    it.ra = getNewRa(it.ds, it.achievements)
-                }
+        info.charts.values.forEach { type ->
+            type.fastForEach {
+                it.ra = getNewRa(it.ds, it.achievements)
             }
-        val realRating =
-            if (b50) info.charts["sd"]!!.sumOf { it.ra } + info.charts["dx"]!!.sumOf { it.ra }
-            else info.rating + info.additional_rating
+        }
+        val realRating = info.charts["sd"]!!.sumOf { it.ra } + info.charts["dx"]!!.sumOf { it.ra }
         return result.context2d {
-            resolveImageCache("rating_base_${ratingColor(realRating, b50)}.png").let { ratingBg ->
+            resolveImageCache("rating_base_${ratingColor(realRating)}.png").let { ratingBg ->
                 drawImage(ratingBg, config.pos.getValue("ratingBg").x, config.pos.getValue("ratingBg").y)
             }
             drawText(info.nickname.toSBC(), config.pos.getValue("name"))
             drawText(realRating.toString().toList().joinToString(" "), config.pos.getValue("dxrating"),
                 Colors.YELLOW, TextAlignment.RIGHT)
-            drawText(if (b50) "对海外 maimai DX rating 的拟构" else "底分：${info.rating} + 段位分：${info.additional_rating}",
-                config.pos.getValue("ratingDetail"))
+            if (info.additional_rating != null) {
+                val dani = config.pos.getValue("dani")
+                drawImage(resolveImageCache("dani_${rating2dani(info.additional_rating)}.png")
+                    .toBMP32().scaleLinear(dani.scale, dani.scale), dani.x, dani.y)
+            }
 
-            drawCharts(info.charts["sd"]!!.fillEmpty(if (b50) 35 else 25), config.oldCols,
-                config.pos.getValue("oldCharts").x, config.pos.getValue("oldCharts").y, config.gap, config)
+            drawCharts(info.charts["sd"]!!.fillEmpty(35), config.oldCols,
+                config.pos.getValue("oldCharts").x, config.pos.getValue("oldCharts").y, config)
             drawCharts(info.charts["dx"]!!.fillEmpty(15), config.newCols,
-                config.pos.getValue("newCharts").x, config.pos.getValue("newCharts").y, config.gap, config)
+                config.pos.getValue("newCharts").x, config.pos.getValue("newCharts").y, config)
             dispose()
         }.encode(PNG)
     }
@@ -87,17 +87,22 @@ object MaimaiImage {
                              nowPage: Int, totalPage: Int): ByteArray {
         val config = theme.scoreList
         val result = resolveImageCache(config.bg).clone()
-        val realRating = info.rating + info.additional_rating
+        val realRating = info.charts["sd"]!!.sumOf { it.ra } + info.charts["dx"]!!.sumOf { it.ra }
         return result.context2d {
             drawText(info.nickname.toSBC(), config.pos.getValue("name"))
-            drawImage(resolveImageCache("rating_base_${ratingColor(realRating, false)}.png"), config.pos.getValue("ratingBg").x, config.pos.getValue("ratingBg").y)
+            drawImage(resolveImageCache("rating_base_${ratingColor(realRating)}.png"), config.pos.getValue("ratingBg").x, config.pos.getValue("ratingBg").y)
             drawText(info.nickname.toSBC(), config.pos.getValue("name"))
             drawText(realRating.toString().toList().joinToString(" "), config.pos.getValue("dxrating"),
                 Colors.YELLOW, TextAlignment.RIGHT)
-            drawText("${level}分数列表，第 $nowPage 页 (共 $totalPage 页)", config.pos.getValue("ratingDetail"))
+            if (info.additional_rating != null) {
+                val dani = config.pos.getValue("dani")
+                drawImage(resolveImageCache("dani_${rating2dani(info.additional_rating)}.png")
+                    .toBMP32().scaleLinear(dani.scale, dani.scale), dani.x, dani.y)
+            }
+            drawText("${level}分数列表，第 $nowPage 页 (共 $totalPage 页)", config.pos.getValue("info"))
 
             drawCharts(l.fillEmpty(50), config.oldCols,
-                config.pos.getValue("oldCharts").x, config.pos.getValue("oldCharts").y, config.gap, config)
+                config.pos.getValue("oldCharts").x, config.pos.getValue("oldCharts").y, config)
             dispose()
         }.encode(PNG)
     }
@@ -134,10 +139,11 @@ object MaimaiImage {
                 }
             }
         }
+        System.gc()
         if (!dsGenerated) {
             MaimaiBot.logger.info("正在生成定数表${if (MaimaiConfig.enableMemCache) "（请耐心等待）" else ""}……")
             dsGenerated = true
-            val semaphore = Semaphore(if (MaimaiConfig.enableMemCache) 16 else 1)
+            val semaphore = Semaphore(if (MaimaiConfig.enableMemCache) 2 else 1)
             coroutineScope {
                 levels.forEachIndexed { ind, level ->
                     launch {
@@ -164,9 +170,6 @@ object MaimaiImage {
         MaimaiBot.logger.info("成功载入所有图片。")
     }
     fun reloadFonts() {
-        theme.b40.pos.filterNot { it.value.fontName.isBlank() }.forEach {
-            fonts[it.value.fontName] = sysFonts.locateFontByName(it.value.fontName) ?: sysFonts.defaultFont()
-        }
         theme.b50.pos.filterNot { it.value.fontName.isBlank() }.forEach {
             fonts[it.value.fontName] = sysFonts.locateFontByName(it.value.fontName) ?: sysFonts.defaultFont()
         }
@@ -178,33 +181,19 @@ object MaimaiImage {
         }
     }
 
-    fun ratingColor(rating: Int, b50: Boolean = false): String = if (b50) {
-        when (rating) {
-            in 0..999 -> "normal"
-            in 1000..1999 -> "blue"
-            in 2000..3999 -> "green"
-            in 4000..6999 -> "orange"
-            in 7000..9999 -> "red"
-            in 10000..11999 -> "purple"
-            in 12000..12999 -> "bronze"
-            in 13000..13999 -> "silver"
-            in 14000..14499 -> "gold"
-            in 14500..14999 -> "gold" // Actually another color
-            in 15000..40000 -> "rainbow"
-            else -> "normal"
-        }
-    } else when (rating) {
-        in 0..999 -> "normal"
-        in 1000..1999 -> "blue"
-        in 2000..2999 -> "green"
-        in 3000..3999 -> "orange"
-        in 4000..4999 -> "red"
-        in 5000..5999 -> "purple"
-        in 6000..6999 -> "bronze"
-        in 7000..7999 -> "silver"
-        in 8000..8499 -> "gold"
-        in 8500..20000 -> "rainbow"
-        else -> "normal"
+    fun ratingColor(rating: Int): String = when (rating) {
+        in 0..999 -> "01"
+        in 1000..1999 -> "02"
+        in 2000..3999 -> "03"
+        in 4000..6999 -> "04"
+        in 7000..9999 -> "05"
+        in 10000..11999 -> "06"
+        in 12000..12999 -> "07"
+        in 13000..13999 -> "08"
+        in 14000..14499 -> "09"
+        in 14500..14999 -> "10"
+        in 15000..40000 -> "11"
+        else -> "01"
     }
     fun difficulty2Name(id: Int, english: Boolean = true): String {
         return if (english) {
@@ -302,6 +291,40 @@ object MaimaiImage {
             else -> 0.0
         }
         return (ds * (min(100.5, achievement) / 100) * baseRa).toIntFloor()
+    }
+    fun rating2dani(rating: Int): String = when (rating) {
+        0 -> "00"
+        1000 -> "01"
+        1200 -> "02"
+        1400 -> "03"
+        1500 -> "04"
+        1600 -> "05"
+        1700 -> "06"
+        1800 -> "07"
+        1850 -> "08"
+        1900 -> "09"
+        1950 -> "10"
+        2000 -> "11"
+        2010 -> "12"
+        2020 -> "13"
+        2030 -> "14"
+        2040 -> "15"
+        2050 -> "16"
+        2060 -> "17"
+        2070 -> "18"
+        2080 -> "19"
+        2090 -> "20"
+        2100 -> "21"
+        else -> "00"
+    }
+    fun genre2filename(genre: String): String = when (genre) {
+        "舞萌" -> "original"
+        "流行&动漫" -> "popsanime"
+        "niconico & VOCALOID" -> "niconico"
+        "东方Project" -> "touhou"
+        "音击&中二节奏" -> "chugeki"
+        "其他游戏" -> "variety"
+        else -> "variety"
     }
     suspend fun resolveImageCache(path: String): Bitmap {
         return if (images.containsKey(path)) {
@@ -421,7 +444,7 @@ fun Context2d.drawTextRelative(text: String, x: Int, y: Int, attr: MaiPicPositio
     val offsetx = if (this.alignment.horizontal == HorizontalAlign.RIGHT) -1 * (attr.size - 1) * (text.length / 2) else 0
     fillText(text, x + attr.x.toDouble() + offsetx, y + attr.y.toDouble())
 }
-suspend fun Context2d.drawCharts(charts: List<MaimaiPlayScore>, cols: Int, startX: Int, startY: Int, gap: Int,
+suspend fun Context2d.drawCharts(charts: List<MaimaiPlayScore>, cols: Int, startX: Int, startY: Int,
                                  config: MaimaiPicConfig, sort: Boolean = true
 ) {
     (if (sort) charts.sortedWith(compareBy({ -it.ra }, { -it.achievements }))
@@ -430,9 +453,9 @@ suspend fun Context2d.drawCharts(charts: List<MaimaiPlayScore>, cols: Int, start
         val newHeight = (coverRaw.width / config.coverRatio).roundToInt()
         var cover = coverRaw.sliceWithSize(0, (coverRaw.height - newHeight) / 2,
             coverRaw.width, newHeight).extract()
-        cover = cover.blurFixedSize(4).brightness(-0.04f)
-        val x = startX + (index % cols) * (cover.width + gap)
-        val y = startY + (index / cols) * (cover.height + gap)
+        cover = cover.blurFixedSize(2).brightness(-0.01f)
+        val x = startX + (index % cols) * (cover.width + config.gapX)
+        val y = startY + (index / cols) * (cover.height + config.gapY)
 
         state.fillStyle = Colors.BLACK // TODO: Make color changeable
         fillRect(x + config.pos.getValue("shadow").x, y + config.pos.getValue("shadow").y,
@@ -443,11 +466,15 @@ suspend fun Context2d.drawCharts(charts: List<MaimaiPlayScore>, cols: Int, start
             drawImage(resolveImageCache("label_${chart.level_label.replace(":", "")}.png").toBMP32().scaleLinear(label.scale, label.scale), x + label.x, y + label.y)
 
             // Details
-            drawTextRelative(chart.title.ellipsize(12), x, y, config.pos.getValue("chTitle"), Colors.WHITE)
+            drawTextRelative(chart.title.ellipsize(16), x, y, config.pos.getValue("chTitle"), Colors.WHITE)
             drawTextRelative(chart.achievements.toString().limitDecimal(4) + "%", x, y,
                 config.pos.getValue("chAchievements"), Colors.WHITE)
             drawTextRelative("Base: ${chart.ds} -> ${chart.ra}", x, y, config.pos.getValue("chBase"), Colors.WHITE)
-            drawTextRelative("#${index + 1}(${chart.type})", x, y, config.pos.getValue("chRank"), Colors.WHITE)
+
+            val type = config.pos.getValue("type")
+            drawImage(
+                resolveImageCache("type_${chart.type.lowercase()}.png").toBMP32().scaleLinear(type.scale, type.scale),
+                x + type.x, y + type.y)
 
             val rateIcon = config.pos.getValue("rateIcon")
             drawImage(
@@ -458,6 +485,12 @@ suspend fun Context2d.drawCharts(charts: List<MaimaiPlayScore>, cols: Int, start
                 drawImage(
                     resolveImageCache("music_icon_${chart.fc}.png").toBMP32().scaleLinear(fcIcon.scale, fcIcon.scale),
                     x + fcIcon.x, y + fcIcon.y)
+            }
+            if (chart.fs.isNotEmpty()) {
+                val fsIcon = config.pos.getValue("fsIcon")
+                drawImage(
+                    resolveImageCache("music_icon_${chart.fs}.png").toBMP32().scaleLinear(fsIcon.scale, fsIcon.scale),
+                    x + fsIcon.x, y + fsIcon.y)
             }
         }
     }
@@ -491,7 +524,7 @@ enum class CoverSource {
 object MaimaiConfig: AutoSavePluginConfig("settings") {
     val theme: String by value("portrait")
     val multiAccountsMode: Boolean by value(false)
-    val coverSource: CoverSource by value(CoverSource.WAHLAP)
+    val coverSource: CoverSource by value(CoverSource.ZETARAKU)
     val maidataJsonUrls: List<String> by value(
         listOf(
             "https://raw.githubusercontent.com/CrazyKidCN/maimaiDX-CN-songs-database/main/maidata.json",
@@ -507,11 +540,12 @@ object MaimaiConfig: AutoSavePluginConfig("settings") {
 }
 @Serializable
 class MaimaiPicConfig(
-    val bg: String, val coverWidth: Int, val coverRatio: Double, val oldCols: Int, val newCols: Int, val gap: Int,
+    val bg: String, val coverWidth: Int, val coverRatio: Double, val oldCols: Int, val newCols: Int,
+    val gapX: Int, val gapY: Int,
     val pos: Map<String, MaiPicPosition>)
 
 @Serializable
-class MaimaiPicTheme(val b40: MaimaiPicConfig, val b50: MaimaiPicConfig, val scoreList: MaimaiPicConfig,
+class MaimaiPicTheme(val b50: MaimaiPicConfig, val scoreList: MaimaiPicConfig,
                      val dsList: MaimaiPicConfig, val info: MaimaiPicConfig)
 
 val difficulty2Color = listOf(RGBA(124, 216, 79), RGBA(245, 187, 11), RGBA(255, 128, 140),

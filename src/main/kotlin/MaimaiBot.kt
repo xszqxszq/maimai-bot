@@ -17,6 +17,7 @@ import com.soywiz.korim.format.PNG
 import com.soywiz.korim.format.encode
 import com.soywiz.korim.format.readNativeImage
 import com.soywiz.korim.text.TextAlignment
+import com.soywiz.korio.file.baseName
 import com.soywiz.korio.file.std.tempVfs
 import com.soywiz.korio.file.std.tmpdir
 import com.soywiz.korio.file.std.toVfs
@@ -33,6 +34,7 @@ import kotlinx.serialization.decodeFromString
 import net.mamoe.mirai.console.permission.PermissionId
 import net.mamoe.mirai.console.permission.PermissionService
 import net.mamoe.mirai.console.permission.PermissionService.Companion.cancel
+import net.mamoe.mirai.console.permission.PermissionService.Companion.hasPermission
 import net.mamoe.mirai.console.permission.PermissionService.Companion.permit
 import net.mamoe.mirai.console.permission.PermitteeId.Companion.permitteeId
 import net.mamoe.mirai.console.plugin.jvm.JvmPluginDescription
@@ -80,7 +82,7 @@ object MaimaiBot : KotlinPlugin(
     JvmPluginDescription(
         id = "xyz.xszq.maimai-bot",
         name = "MaimaiBot",
-        version = "1.3.6",
+        version = "1.3.7",
     ) {
         author("xszqxszq")
     }
@@ -94,6 +96,10 @@ object MaimaiBot : KotlinPlugin(
     private val deniedGuess by lazy {
         PermissionService.INSTANCE.register(
             PermissionId("maimaiBot", "guess"), "禁用 maimai-bot 的所有功能")
+    }
+    private val admin by lazy {
+        PermissionService.INSTANCE.register(
+            PermissionId("maimaiBot", "admin"), "允许对 maimai-bot 插件进行管理操作")
     }
     var channel: EventChannel<Event> = globalEventChannel()
     val yaml = Yaml {}
@@ -113,24 +119,24 @@ object MaimaiBot : KotlinPlugin(
             if (MaimaiConfig.multiAccountsMode)
                 channel = channel.validate(validator)
             channel.subscribeMessages {
-                startsWith(withPrefix("b40")) { username ->
+                startsWith(withPrefix("b40")) { username -> // Deprecated
                     notDenied(denied) {
                         if (message.anyIsInstance<At>())
-                            queryBest("qq", message.firstIsInstance<At>().target.toString(), false, this)
+                            queryBest("qq", message.firstIsInstance<At>().target.toString(), this)
                         else if (username.isBlank())
-                            queryBest("qq", sender.id.toString(), false, this)
+                            queryBest("qq", sender.id.toString(), this)
                         else
-                            queryBest("username", username, false, this)
+                            queryBest("username", username, this)
                     }
                 }
                 startsWith(withPrefix("b50")) { username ->
                     notDenied(denied) {
                         if (message.anyIsInstance<At>())
-                            queryBest("qq", message.firstIsInstance<At>().target.toString(), true, this)
+                            queryBest("qq", message.firstIsInstance<At>().target.toString(), this)
                         else if (username.isBlank())
-                            queryBest("qq", sender.id.toString(), true, this)
+                            queryBest("qq", sender.id.toString(), this)
                         else
-                            queryBest("username", username, true, this)
+                            queryBest("username", username, this)
                     }
                 }
                 startsWith(withPrefix("随个")) { raw ->
@@ -261,7 +267,7 @@ object MaimaiBot : KotlinPlugin(
                 }
             }
             arrayOf("真", "超", "檄", "橙", "晓", "桃", "樱", "紫", "堇", "白", "雪", "辉", "舞", "熊", "华", "爽",
-                "煌", "").forEach { ver ->
+                "煌", "宙", "星", "").forEach { ver ->
                 arrayOf("极", "将", "神", "舞舞", "霸者").forEach { type ->
                     if (ver != "" || type == "霸者")
                         channel.subscribeMessages {
@@ -346,12 +352,25 @@ object MaimaiBot : KotlinPlugin(
                         }
                     }
                 }
+                startsWith("/mai reload") {
+                    if (sender.permitteeId.hasPermission(admin)) {
+                        reload()
+                        quoteReply("maimai-bot 插件重载完毕。")
+                    }
+                }
+                startsWith("/mai themereload") {
+                    if (sender.permitteeId.hasPermission(admin)) {
+                        MaimaiImage.theme = yaml.decodeFromString(
+                            MaimaiBot.resolveConfigFile("${MaimaiConfig.theme}/theme.yml").toVfs().readString())
+                        quoteReply("maimai-bot 插件重载完毕。")
+                    }
+                }
             }
             logger.info { "maimai-bot 插件加载完毕。" }
         }
         denied
     }
-    private suspend fun reload() {
+    suspend fun reload() {
         musics.putAll(DXProberApi.getMusicList().associateBy { it.id })
         musics.keys.forEach {
             aliases[it] = mutableSetOf()
@@ -396,7 +415,7 @@ object MaimaiBot : KotlinPlugin(
         now.mkdir()
         getResourceFileList(dir).fastForEach {
             val target = now[it]
-            if (!target.exists()) {
+            if ((isConfig && target.baseName != "aliases.csv") || !target.exists()) {
                 if (!target.parent.exists())
                     target.parent.mkdir()
                 getResourceAsStream("$dir/$it")!!.readBytes().writeToFile(target)
@@ -424,13 +443,13 @@ object MaimaiBot : KotlinPlugin(
         return result
     }
 
-    private fun withPrefix(s: String) = if (MaimaiConfig.prefix.isBlank()) s else MaimaiConfig.prefix + " " + s
+    fun withPrefix(s: String) = if (MaimaiConfig.prefix.isBlank()) s else MaimaiConfig.prefix + " " + s
 
-    private suspend fun queryBest(type: String = "qq", id: String, b50: Boolean, event: MessageEvent) = event.run {
-        val result = DXProberApi.getPlayerData(type, id, b50)
+    suspend fun queryBest(type: String = "qq", id: String, event: MessageEvent) = event.run {
+        val result = DXProberApi.getPlayerData(type, id, true)
         when (result.first) {
             HttpStatusCode.OK -> {
-                MaimaiImage.generateBest(result.second!!, b50).toExternalResource().use { img ->
+                MaimaiImage.generateBest(result.second!!).toExternalResource().use { img ->
                     quoteReply(img.uploadAsImage(subject))
                 }
             }
@@ -712,13 +731,15 @@ object MaimaiBot : KotlinPlugin(
         "辉" -> listOf("maimai FiNALE")
         in listOf("熊", "华") -> listOf("maimai でらっくす", "maimai でらっくす PLUS")
         in listOf("爽", "煌") -> listOf("maimai でらっくす Splash")
+        in listOf("宙", "星") -> listOf("maimai でらっくす UNiVERSE")
         in listOf("舞", "") -> listOf("maimai", "maimai PLUS", "maimai GreeN", "maimai GreeN PLUS", "maimai ORANGE",
             "maimai ORANGE PLUS", "maimai PiNK", "maimai PiNK PLUS", "maimai MURASAKi", "maimai MURASAKi PLUS",
             "maimai MiLK", "MiLK PLUS", "maimai FiNALE")
         "all" -> listOf("maimai", "maimai PLUS", "maimai GreeN", "maimai GreeN PLUS", "maimai ORANGE",
             "maimai ORANGE PLUS", "maimai PiNK", "maimai PiNK PLUS", "maimai MURASAKi", "maimai MURASAKi PLUS",
             "maimai MiLK", "MiLK PLUS", "maimai FiNALE", "maimai でらっくす", "maimai でらっくす PLUS",
-            "maimai でらっくす Splash", "maimai でらっくす Splash PLUS")
+            "maimai でらっくす Splash", "maimai でらっくす Splash PLUS", "maimai でらっくす UNiVERSE",
+            "maimai でらっくす UNiVERSE PLUS", "maimai でらっくす FESTiVAL", "maimai でらっくす FESTiVAL PLUS")
         else -> emptyList()
     }
     suspend fun queryPlate(vName: String, type: String, queryType: String, id: String, event: MessageEvent) = event.run {
@@ -910,15 +931,15 @@ object MaimaiBot : KotlinPlugin(
                         0, (coverRaw.height - newHeight) / 2,
                         coverRaw.width, newHeight
                     ).extract()
-                    val x = config.pos.getValue("list").x + col * (config.coverWidth + config.gap)
-                    val y = nowY + row * (config.coverWidth + config.gap)
+                    val x = config.pos.getValue("list").x + col * (config.coverWidth + config.gapX)
+                    val y = nowY + row * (config.coverWidth + config.gapY)
                     fillStyle = difficulty2Color[difficulty]
                     fillRect(x - 3, y - 3, cover.width + 6, cover.height + 6)
                     drawImage(cover, x, y)
                 }
-                nowY += (l.size * 1.0 / config.oldCols).toIntCeil() * (config.coverWidth + config.gap) + config.gap
+                nowY += (l.size * 1.0 / config.oldCols).toIntCeil() * (config.coverWidth + config.gapY) + config.gapY
             }
-        }.sliceWithSize(0, 0, bg.width, nowY + config.gap).extract()
+        }.sliceWithSize(0, 0, bg.width, nowY + config.gapY).extract()
     }
     suspend fun queryLevelRecord(level: String, queryType: String, id: String, event: MessageEvent) = event.run {
         val result = DXProberApi.getDataByVersion(queryType, id, getPlateVerList("all"))
@@ -947,8 +968,8 @@ object MaimaiBot : KotlinPlugin(
                     records.find { it.id == m.id.toInt() && it.level_index == difficulty } ?.let { record ->
                         val row = index / config.oldCols
                         val col = index % config.oldCols
-                        val x = config.pos.getValue("list").x + col * (config.coverWidth + config.gap)
-                        val y = nowY + row * (config.coverWidth + config.gap)
+                        val x = config.pos.getValue("list").x + col * (config.coverWidth + config.gapX)
+                        val y = nowY + row * (config.coverWidth + config.gapY)
                         val rateIcon = config.pos.getValue("rateIcon")
                         fillStyle = RGBA(0, 0, 0, 128)
                         fillRect(x, y, config.coverWidth, config.coverWidth)
@@ -958,7 +979,7 @@ object MaimaiBot : KotlinPlugin(
                             x + rateIcon.x, y + rateIcon.y)
                     }
                 }
-                nowY += (l.size * 1.0 / config.oldCols).toIntCeil() * (config.coverWidth + config.gap) + config.gap
+                nowY += (l.size * 1.0 / config.oldCols).toIntCeil() * (config.coverWidth + config.gapY) + config.gapY
             }
         }.encode(PNG).toExternalResource().use {
             quoteReply(it.uploadAsImage(subject))
@@ -999,8 +1020,8 @@ object MaimaiBot : KotlinPlugin(
                     val newHeight = (coverRaw.width / config.coverRatio).roundToInt()
                     val cover = coverRaw.sliceWithSize(0, (coverRaw.height - newHeight) / 2,
                         coverRaw.width, newHeight).extract()
-                    val x = config.pos.getValue("list").x + col * (config.coverWidth + config.gap)
-                    val y = nowY + row * (config.coverWidth + config.gap)
+                    val x = config.pos.getValue("list").x + col * (config.coverWidth + config.gapX)
+                    val y = nowY + row * (config.coverWidth + config.gapY)
                     drawImage(cover, x, y)
                     records.find { it.id == m.id.toInt() && it.level_index == 3 } ?.let { record ->
                         when (type) {
@@ -1050,9 +1071,9 @@ object MaimaiBot : KotlinPlugin(
                         }
                     }
                 }
-                nowY += (l.size * 1.0 / config.oldCols).toIntCeil() * (config.coverWidth + config.gap) + config.gap
+                nowY += (l.size * 1.0 / config.oldCols).toIntCeil() * (config.coverWidth + config.gapY) + config.gapY
             }
-        }.sliceWithSize(0, 0, img.width, nowY + config.gap).extract().encode(PNG).toExternalResource().use {
+        }.sliceWithSize(0, 0, img.width, nowY + config.gapY).extract().encode(PNG).toExternalResource().use {
             quoteReply(it.uploadAsImage(subject))
         }
     }
@@ -1081,15 +1102,19 @@ object MaimaiBot : KotlinPlugin(
             val details = buildString {
                 append("ID: $id")
                 append("　　")
-                append(songInfo.basic_info.genre)
-                append("　　")
                 append("BPM: " + songInfo.basic_info.bpm)
             }
             drawText(details, config.pos.getValue("details"))
+
+            val genre = config.pos.getValue("genre")
+            drawImage(MaimaiImage.resolveImageCache(
+                "category_${MaimaiImage.genre2filename(songInfo.basic_info.genre)}.png").toBMP32()
+                .scaleLinear(genre.scale, genre.scale), genre.x, genre.y)
+
             val startX = config.pos.getValue("list").x
             val startY = config.pos.getValue("list").y
             for (i in 0 .. 4) {
-                val nowY = startY + i * config.gap
+                val nowY = startY + i * config.gapY
                 drawTextRelative(songInfo.ds[i].toString(),
                     startX, nowY, config.pos.getValue("ds"), Colors.WHITE, TextAlignment.CENTER)
                 if (i >= songInfo.ds.size) {

@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "xyz.xszq"
-version = "1.3.6"
+version = "1.3.7"
 val korlibsVersion = "2.7.0"
 val ktorVersion = "1.6.8"
 
@@ -19,6 +19,7 @@ repositories {
 }
 
 dependencies {
+    testImplementation("net.mamoe:mirai-core-mock:2.14.0")
     implementation("com.github.doyaaaaaken:kotlin-csv-jvm:1.3.0")
     implementation("com.github.houbb:opencc4j:1.7.2")
     implementation("com.soywiz.korlibs.korim:korim:$korlibsVersion")
@@ -28,4 +29,5 @@ dependencies {
     implementation("io.ktor:ktor-client-serialization:$ktorVersion")
     implementation("net.mamoe.yamlkt:yamlkt:0.10.2")
     implementation("xyz.xszq:mirai-multi-account:1.1.2")
+    implementation(kotlin("stdlib-jdk8"))
 }
