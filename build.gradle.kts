@@ -5,7 +5,7 @@ plugins {
     kotlin("jvm") version kotlinVersion
     kotlin("plugin.serialization") version kotlinVersion
 
-    id("net.mamoe.mirai-console") version "2.15.0-M1"
+    id("net.mamoe.mirai-console") version "2.15.0"
 }
 
 group = "xyz.xszq"
@@ -19,7 +19,7 @@ repositories {
 }
 
 dependencies {
-    testImplementation("net.mamoe:mirai-core-mock:2.14.0")
+    testImplementation("net.mamoe:mirai-core-mock:2.15.0")
     implementation("com.github.doyaaaaaken:kotlin-csv-jvm:1.3.0")
     implementation("com.github.houbb:opencc4j:1.7.2")
     implementation("com.soywiz.korlibs.korim:korim:$korlibsVersion")

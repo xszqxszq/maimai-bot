@@ -145,7 +145,7 @@ object MaimaiImage {
             dsGenerated = true
             val semaphore = Semaphore(if (MaimaiConfig.enableMemCache) 2 else 1)
             coroutineScope {
-                levels.forEachIndexed { ind, level ->
+                levels.forEachIndexed { _, level ->
                     launch {
                         semaphore.withPermit {
                             val bg = lock.withLock {
@@ -252,26 +252,6 @@ object MaimaiImage {
             in 100.5..101.0 -> "sssp"
             else -> ""
         }
-    fun getOldRa(ds: Double, achievement: Double): Int {
-        val baseRa = when (achievement) {
-            in 0.0..49.9999 ->  0.0
-            in 50.0..59.9999 -> 5.0
-            in 60.0..69.9999 -> 6.0
-            in 70.0..74.9999 -> 7.0
-            in 75.0..79.9999 -> 7.5
-            in 80.0..89.9999 -> 8.5
-            in 90.0..93.9999 -> 9.5
-            in 94.0..96.9999 -> 10.5
-            in 97.0..97.9999 -> 12.5
-            in 98.0..98.9999 -> 12.7
-            in 99.0..99.4999 -> 13.0
-            in 99.5..99.9999 -> 13.2
-            in 100.0..100.4999 -> 13.5
-            in 100.5..101.0 -> 14.0
-            else -> 0.0
-        }
-        return (ds * (min(100.5, achievement) / 100) * baseRa).toIntFloor()
-    }
     fun getNewRa(ds: Double, achievement: Double): Int {
         val baseRa = when (achievement) {
             in 0.0..49.9999 ->  7.0
@@ -294,27 +274,28 @@ object MaimaiImage {
     }
     fun rating2dani(rating: Int): String = when (rating) {
         0 -> "00"
-        1000 -> "01"
-        1200 -> "02"
-        1400 -> "03"
-        1500 -> "04"
-        1600 -> "05"
-        1700 -> "06"
-        1800 -> "07"
-        1850 -> "08"
-        1900 -> "09"
-        1950 -> "10"
-        2000 -> "11"
-        2010 -> "12"
-        2020 -> "13"
-        2030 -> "14"
-        2040 -> "15"
-        2050 -> "16"
-        2060 -> "17"
-        2070 -> "18"
-        2080 -> "19"
-        2090 -> "20"
-        2100 -> "21"
+        1 -> "01"
+        2 -> "02"
+        3 -> "03"
+        4 -> "04"
+        5 -> "05"
+        6 -> "06"
+        7 -> "07"
+        8 -> "08"
+        9 -> "09"
+        10 -> "10"
+        11 -> "12"
+        12 -> "13"
+        13 -> "14"
+        14 -> "15"
+        15 -> "16"
+        16 -> "17"
+        17 -> "18"
+        18 -> "19"
+        19 -> "20"
+        20 -> "21"
+        21 -> "22"
+        22 -> "23"
         else -> "00"
     }
     fun genre2filename(genre: String): String = when (genre) {
@@ -534,9 +515,10 @@ object MaimaiConfig: AutoSavePluginConfig("settings") {
         )
     )
     val zetarakuSite: String by value("https://dp4p6x0xfi5o9.cloudfront.net")
-    val xrayAliasUrl: String by value("https://download.fanyu.site/maimai/alias.json")
+    val xrayAliasUrl: String by value("https://download.fanyu.site/maimai/alias_uc.json") // Not stable
     val prefix: String by value("")
     val enableMemCache: Boolean by value(true)
+    val hintOnGeneration: Boolean by value(false)
 }
 @Serializable
 class MaimaiPicConfig(

@@ -56,7 +56,7 @@ import xyz.xszq.MaimaiBotSharedData.musics
 import xyz.xszq.MaimaiBotSharedData.stats
 import xyz.xszq.MaimaiImage.acc2rate
 import xyz.xszq.MaimaiImage.difficulty2Name
-import xyz.xszq.MaimaiImage.getOldRa
+import xyz.xszq.MaimaiImage.getNewRa
 import xyz.xszq.MaimaiImage.images
 import xyz.xszq.MaimaiImage.levelIndex2Label
 import xyz.xszq.MaimaiImage.resolveCoverCache
@@ -346,25 +346,33 @@ object MaimaiBot : KotlinPlugin(
                         }
                     }
                 }
-                startsWith(withPrefix("猜歌")) {
+                "猜歌" {
                     notDenied(denied) {
                         notDenied(deniedGuess) {
                             GuessGame.handle(this)
                         }
                     }
                 }
-                startsWith("/mai reload") {
+                startsWith(MaimaiConfig.prefix.ifBlank { "/mai" } + " reload") {
                     if (sender.permitteeId.hasPermission(admin)) {
                         reload()
                         quoteReply("maimai-bot 插件重载完毕。")
                     }
                 }
-                startsWith("/mai themereload") {
+                startsWith(MaimaiConfig.prefix.ifBlank { "/mai" } + " themereload") {
                     if (sender.permitteeId.hasPermission(admin)) {
                         MaimaiImage.theme = yaml.decodeFromString(
                             MaimaiBot.resolveConfigFile("${MaimaiConfig.theme}/theme.yml").toVfs().readString())
                         quoteReply("maimai-bot 插件重载完毕。")
                     }
+                }
+                startsWith(MaimaiConfig.prefix.ifBlank { "/mai" } + " help") {
+                    quoteReply("""
+                        maimai-bot 插件主要支持以下功能：
+                        b50，查歌[歌名]，[别名]是什么歌，info[歌名]，id[编号]，定数查歌，随个[难度+等级]，[编号]有什么别名，分数线，猜歌，mai什么加分，[牌子/等级]进度，[牌子/等级]完成表，分数列表
+                        
+                        具体使用方法请访问项目主页：https://github.com/xszqxszq/maimai-bot
+                        """.trimIndent())
                 }
             }
             logger.info { "maimai-bot 插件加载完毕。" }
@@ -447,9 +455,11 @@ object MaimaiBot : KotlinPlugin(
     fun withPrefix(s: String) = if (MaimaiConfig.prefix.isBlank()) s else MaimaiConfig.prefix + " " + s
 
     suspend fun queryBest(type: String = "qq", id: String, event: MessageEvent) = event.run {
-        val result = DXProberApi.getPlayerData(type, id, true)
+        val result = DXProberApi.getPlayerData(type, id)
         when (result.first) {
             HttpStatusCode.OK -> {
+                if (MaimaiConfig.hintOnGeneration)
+                    quoteReply("正在生成中……")
                 MaimaiImage.generateBest(result.second!!).toExternalResource().use { img ->
                     quoteReply(img.uploadAsImage(subject))
                 }
@@ -562,8 +572,7 @@ object MaimaiBot : KotlinPlugin(
             if (nowAliases?.isNotEmpty() == true)
                 quoteReply("$id. ${selected.title} 有如下别名：\n" + nowAliases.joinToString("\n"))
             else
-                quoteReply("这首歌似乎没有别名呢。\n您可以联系 bot 号主添加别名，" +
-                        "或访问此网址添加：https://docs.qq.com/sheet/DWGNNYUdTT01PY2N1")
+                quoteReply("这首歌似乎没有别名呢。\n您可以联系 bot 号主添加别名")
         }
     }
 
@@ -578,50 +587,49 @@ object MaimaiBot : KotlinPlugin(
             quoteReply("没有这样的乐曲。")
         }
     }
+    fun calcB50Change(b50: MutableList<MaimaiPlayScore>,
+                              music: MaimaiMusicInfo, difficulty: Int, acc: Double,
+                              b35Floor: Int, b15Floor: Int) : Int {
+        val ra = getNewRa(music.ds[difficulty], acc)
+        b50.find { it.song_id.toString() == music.id && it.level_index == difficulty } ?.let { score ->
+            val scoreRa = getNewRa(score.ds, score.achievements)
+            if (ra > scoreRa)
+                return ra - scoreRa
+            else
+                return 0
+        }
+        if (music.basic_info.is_new && ra > b15Floor)
+            return ra - b15Floor
+        if (!music.basic_info.is_new && ra > b35Floor)
+            return ra - b35Floor
+        return 0
+    }
     private suspend fun getRandomForRatingUp(target: Int = 1, amount: Int = 1, acc: Double = 100.5, event: MessageEvent) = event.run {
-        val result = DXProberApi.getPlayerData("qq", sender.id.toString(), false)
+        val result = DXProberApi.getPlayerData("qq", sender.id.toString())
         when (result.first) {
             HttpStatusCode.OK -> {
-                val nowB25 = result.second!!.charts["sd"]!!.sortedBy { it.ra }.toMutableList()
-                val nowB15 = result.second!!.charts["dx"]!!.sortedBy { it.ra }.toMutableList()
-                val nowB25Sum = nowB25.sumOf { it.ra }
-                val nowB15Sum = nowB15.sumOf { it.ra }
+                val b50 = (result.second!!.charts["sd"]!! + result.second!!.charts["dx"]!!).toMutableList()
+                val b35Floor = result.second!!.charts["sd"]!!.minByOrNull { it.ra }!!.run { getNewRa(ds, achievements) }
+                val b15Floor = result.second!!.charts["dx"]!!.minByOrNull { it.ra }!!.run { getNewRa(ds, achievements) }
                 val selected = musics.values.map { m ->
-                    m.ds.mapIndexed { index, it ->
-                        val ra = getOldRa(it, acc)
-                        if (m.basic_info.is_new) {
-                            if (ra > nowB15.first().ra &&
-                                (listOf(ra) + nowB15.filter { it.song_id != m.id.toInt() }.map { it.ra })
-                                    .sortedDescending().take(15).sum() - nowB15Sum in target..target + 10)
-                                    Pair(m, index)
-                            else
-                                Pair(null, -1)
-                        } else {
-                            if (ra > nowB25.first().ra &&
-                                (listOf(ra) + nowB25.filter { it.song_id != m.id.toInt() }.map { it.ra })
-                                    .sortedDescending().take(25).sum() - nowB25Sum in target..target + 10)
-                                Pair(m, index)
-                            else Pair(null, -1)
-                        }
-                    }.filter { it.first != null }
+                    List(m.ds.size) { index ->
+                        Triple(m, index, calcB50Change(b50, m, index, acc, b35Floor, b15Floor))
+                    }.filter { it.third > 0 && it.third > target }
                 }.flatten().shuffled().take(amount)
                 if (selected.size == 1) {
-                    val selectedSong = selected.first()
-                    val info = getMusicInfoForSend(selectedSong.first!!, this)
-                    val ra = getOldRa(selectedSong.first!!.ds[selectedSong.second], acc)
-                    val up = if (selectedSong.first!!.basic_info.is_new)
-                        (listOf(ra) + nowB15.filter { it.song_id != selectedSong.first!!.id.toInt() }.map { it.ra })
-                            .sortedDescending().take(15).sum() - nowB15Sum
-                    else (listOf(ra) + nowB25.filter { it.song_id != selectedSong.first!!.id.toInt() }.map { it.ra })
-                        .sortedDescending().take(25).sum() - nowB25Sum
-                    info.add("\n此曲${difficulty2Name(selectedSong.second)}难度推至 100.5% 可加${
+                    val selectedInfo = selected.first()
+                    val selectedSong = selectedInfo.first
+                    val difficulty = selectedInfo.second
+                    val up = selectedInfo.third
+                    val info = getMusicInfoForSend(selectedSong, this)
+                    info.add("\n此曲${difficulty2Name(difficulty)}难度推至 100.5% 可加${
                         if (target == 1) " $up " else "至少 $target "
                     }分")
                     quoteReply(info.build())
                 } else if (selected.size > 1) {
                     quoteReply(buildString {
                         selected.forEach {
-                            appendLine("${it.first!!.id}. ${it.first!!.title} (${difficulty2Name(it.second)})")
+                            appendLine("${it.first.id}. ${it.first.title} (${difficulty2Name(it.second)})")
                         }
                     })
                 } else {
@@ -683,7 +691,7 @@ object MaimaiBot : KotlinPlugin(
             else -> quoteReply("格式错误，请输入“分数线 帮助”查看使用说明。")
         }
     }
-    private suspend fun getMusicInfoForSend(
+    suspend fun getMusicInfoForSend(
         selected: MaimaiMusicInfo, event: MessageEvent, builder: MessageChainBuilder = MessageChainBuilder())
             = event.run {
         builder.add(selected.id + ". " + selected.title + "\n")
@@ -754,7 +762,7 @@ object MaimaiBot : KotlinPlugin(
         if (result.second == null || result.first != HttpStatusCode.OK)
             return@run
         val data = result.second!!.verlist
-        val remains = MutableList<MutableList<Pair<Int, Int>>>(5) { mutableListOf() }
+        val remains = MutableList<MutableList<Pair<String, Int>>>(5) { mutableListOf() }
         data.filter {
             when (type) {
                 "将" -> it.achievements < 100.0
@@ -765,26 +773,24 @@ object MaimaiBot : KotlinPlugin(
                 else -> false
             }
         }.forEach {
-            remains[it.level_index].add(Pair(it.id, it.level_index))
+            remains[it.level_index].add(Pair(it.id.toString(), it.level_index))
         }
         musics.values.filter { it.basic_info.from in vList }.forEach { song ->
              for (i in 0 until song.ds.size) {
                 if (data.none { it.id.toString() == song.id && it.level_index == i }) {
-                    remains[i].add(Pair(song.id.toInt(), i))
+                    remains[i].add(Pair(song.id, i))
                 }
             }
         }
         if (vName != "舞" && type != "霸者")
             remains[4] = mutableListOf()
-        val excluded = listOf(341, 451, 455, 460, 792, 853)
-        val remasterExcluded = listOf(85, 111, 115, 133, 134, 144, 155, 239, 240, 248, 260, 261, 364, 367, 378,
-            463, 472)
+        val remasterExcluded = listOf("158", "139", "571", "25", "72", "135", "257", "131", "351", "503", "168", "299", "159", "269", "138", "275", "67", "92", "108", "85", "173", "339", "369", "49")
         if (vName == "真")
             remains.forEach { l ->
-                l.removeIf { it.first == 70 }
+                l.removeIf { it.first == "56" }
             }
         remains.forEach { l ->
-            l.removeIf { it.first in excluded }
+            l.removeIf { it.first in plateExcluded }
         }
         remains[4].removeIf { it.first in remasterExcluded }
         var reply = ""
@@ -802,14 +808,14 @@ object MaimaiBot : KotlinPlugin(
             }
         }
         val hard = (remains[3] + remains[4]).filter {
-            musics[it.first.toString()]!!.ds[it.second] >= 14.6
-        }.sortedByDescending { musics[it.first.toString()]!!.ds[it.second] }.take(5)
+            musics[it.first]!!.ds[it.second] >= 14.6
+        }.sortedByDescending { musics[it.first]!!.ds[it.second] }.take(5)
         if (hard.isNotEmpty()) {
             reply += "\n高难度谱面："
             hard.forEach {
-                val info = musics[it.first.toString()]!!
+                val info = musics[it.first]!!
                 reply += "\n${info.id}. ${info.title} ${difficulty2Name(it.second)} Lv. ${info.level[it.second]}" +
-                        "(${data.find { d -> d.id == it.first && d.level_index == it.second }
+                        "(${data.find { d -> d.id.toString() == it.first && d.level_index == it.second }
                             ?.achievements?.roundDecimalPlaces(4)?:"0.0000"}%)"
             }
         }
@@ -881,7 +887,9 @@ object MaimaiBot : KotlinPlugin(
         if (result.second == null || result.first != HttpStatusCode.OK)
             return@run
 
-        val basicInfo = DXProberApi.getPlayerData(queryType, id, false).second!!
+        if (MaimaiConfig.hintOnGeneration)
+            quoteReply("正在生成中……")
+        val basicInfo = DXProberApi.getPlayerData(queryType, id).second!!
         val leastDs =
             if (level.last() == '+') level.substringBefore('+').toInt() + 0.7
             else level.toDouble()
@@ -894,7 +902,7 @@ object MaimaiBot : KotlinPlugin(
             val info = musics[it.id.toString()]!!
             MaimaiPlayScore(it.achievements, info.ds[it.level_index], it.fc, it.fs,
                 info.level[it.level_index], it.level_index, levelIndex2Label(it.level_index),
-                getOldRa(info.ds[it.level_index], it.achievements), acc2rate(it.achievements),
+                getNewRa(info.ds[it.level_index], it.achievements), acc2rate(it.achievements),
                 it.id, it.title, it.type)
         }.sortedWith(compareBy({ -it.achievements }, { -it.ra }))
         val pages = (data.size / 50.0).toIntCeil()
@@ -951,6 +959,8 @@ object MaimaiBot : KotlinPlugin(
         }
         if (result.second == null || result.first != HttpStatusCode.OK)
             return@run
+        if (MaimaiConfig.hintOnGeneration)
+            quoteReply("正在生成中……")
         val records = result.second!!.verlist.filter { it.level == level }.filter { it.achievements > 79.9999 }
 
         val img = if (MaimaiConfig.enableMemCache) images["ds/$level.png"]!!.clone() else tempVfs["ds/$level.png"].readNativeImage()
@@ -986,6 +996,7 @@ object MaimaiBot : KotlinPlugin(
             quoteReply(it.uploadAsImage(subject))
         }
     }
+    val plateExcluded = listOf("201", "332", "336", "367", "486", "645")
     suspend fun queryPlateRecord(vName: String, type: String, queryType: String, id: String, event: MessageEvent) = event.run {
         val vList = getPlateVerList(vName)
         val result = DXProberApi.getDataByVersion(queryType, id, vList)
@@ -997,11 +1008,12 @@ object MaimaiBot : KotlinPlugin(
         if (result.second == null || result.first != HttpStatusCode.OK)
             return@run
 
+        if (MaimaiConfig.hintOnGeneration)
+            quoteReply("正在生成中……")
         val raw = musics.values.filter { it.basic_info.from in vList }.toMutableList()
-        val excluded = listOf(341, 451, 455, 460, 792, 853)
         if (vName == "真")
-            raw.removeIf { it.id == "70" }
-        raw.removeIf { it.id.toInt() in excluded }
+            raw.removeIf { it.id == "56" }
+        raw.removeIf { it.id in plateExcluded }
         val songs = raw.map { it.level[3] }.distinct().sortedDescending().associateWith { d ->
             raw.filter { m -> m.level[3] == d }
         }
@@ -1032,12 +1044,10 @@ object MaimaiBot : KotlinPlugin(
                                     fillRect(x, y, config.coverWidth, config.coverWidth)
                                 }
                                 val rateIcon = config.pos.getValue("rateIcon")
-                                MaimaiImage.resolveImageCache("music_icon_${acc2rate(record.achievements)}.png")?.let {
-                                    drawImage(
-                                        it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
-                                        x + rateIcon.x, y + rateIcon.y
-                                    )
-                                }
+                                drawImage(
+                                    MaimaiImage.resolveImageCache("music_icon_${acc2rate(record.achievements)}.png").toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
+                                    x + rateIcon.x, y + rateIcon.y
+                                )
                             }
                             in listOf("极", "神") -> {
                                 if ((type == "极" && record.fc.isNotEmpty()) || (type == "神" && record.fc in listOf("ap", "app"))) {
@@ -1047,12 +1057,11 @@ object MaimaiBot : KotlinPlugin(
                                 if (record.fc.isEmpty())
                                     return@let
                                 val rateIcon = config.pos.getValue("fcIcon")
-                                MaimaiImage.resolveImageCache("music_icon_${record.fc}.png")?.let {
-                                    drawImage(
-                                        it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
-                                        x + rateIcon.x, y + rateIcon.y
-                                    )
-                                }
+                                drawImage(
+                                    MaimaiImage.resolveImageCache("music_icon_${record.fc}.png")
+                                        .toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
+                                    x + rateIcon.x, y + rateIcon.y
+                                )
                             }
                             "舞舞" -> {
                                 if (record.fs in listOf("fsd", "fsdp")) {
@@ -1062,12 +1071,11 @@ object MaimaiBot : KotlinPlugin(
                                 if (record.fs.isEmpty())
                                     return@let
                                 val rateIcon = config.pos.getValue("fcIcon")
-                                MaimaiImage.resolveImageCache("music_icon_${record.fs}.png")?.let {
-                                    drawImage(
-                                        it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
-                                        x + rateIcon.x, y + rateIcon.y
-                                    )
-                                }
+                                drawImage(
+                                    MaimaiImage.resolveImageCache("music_icon_${record.fs}.png")
+                                        .toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
+                                    x + rateIcon.x, y + rateIcon.y
+                                )
                             }
                         }
                     }
@@ -1128,23 +1136,23 @@ object MaimaiBot : KotlinPlugin(
                         startX, nowY, config.pos.getValue("diffInfo"), Colors.WHITE)
 
                     val rateIcon = config.pos.getValue("rateIcon")
-                    MaimaiImage.resolveImageCache("music_icon_${acc2rate(record.achievements)}.png") ?.let {
+                    MaimaiImage.resolveImageCache("music_icon_${acc2rate(record.achievements)}.png").let {
                         drawImage(it.toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
                             startX + rateIcon.x, nowY + rateIcon.y)
                     }
                     if (record.fc.isNotEmpty()) {
                         val fcIcon = config.pos.getValue("fcIcon")
-                        MaimaiImage.resolveImageCache("music_icon_${record.fc}.png") ?.let {
-                            drawImage(it.toBMP32().scaleLinear(fcIcon.scale, fcIcon.scale),
-                                startX + fcIcon.x, nowY + fcIcon.y)
-                        }
+                        drawImage(
+                            MaimaiImage.resolveImageCache("music_icon_${record.fc}.png")
+                                .toBMP32().scaleLinear(fcIcon.scale, fcIcon.scale),
+                            startX + fcIcon.x, nowY + fcIcon.y)
                     }
                     if (record.fs.isNotEmpty()) {
                         val fsIcon = config.pos.getValue("fsIcon")
-                        MaimaiImage.resolveImageCache("music_icon_${record.fs}.png") ?.let {
-                            drawImage(it.toBMP32().scaleLinear(fsIcon.scale, fsIcon.scale),
-                                startX + fsIcon.x, nowY + fsIcon.y)
-                        }
+                        drawImage(
+                            MaimaiImage.resolveImageCache("music_icon_${record.fs}.png")
+                                .toBMP32().scaleLinear(fsIcon.scale, fsIcon.scale),
+                            startX + fsIcon.x, nowY + fsIcon.y)
                     }
                 } ?: run {
                     drawTextRelative("您未游玩过该谱面",

@@ -1,17 +1,16 @@
 # maimaiBot
 
-一个基于 [mirai](https://github.com/mamoe/mirai) 和 [舞萌 DX 查分器](https://www.diving-fish.com/maimaidx/prober) 编写的 maimai DX QQ 机器人插件。
+一个基于 [mirai](https://github.com/mamoe/mirai) 和 [舞萌 DX 查分器](https://www.diving-fish.com/maimaidx/prober) 以及 [Xray Bot 别名信息](https://download.fanyu.site/maimai/alias_uc.json) 编写的 maimai DX QQ 机器人插件。
 
 ## 支持的功能
 
-* b40
 * b50
 * 查歌
 * XXX 是什么歌
 * 谱面详情（例：紫id11154）
-* 歌曲分数信息（例：info 834）
+* 歌曲分数信息（例：info 潘）
 * 随机歌曲（例：随个紫12+）
-* 别名查询（例：11154有什么别名）
+* 别名查询（例：11514有什么别名）
 * 定数查歌
 * 分数线
 * 猜歌
@@ -71,4 +70,7 @@
 * `coverSource: WAHLAP` 封面下载源。如果无法下载或者没有更新后新增的曲子，请尝试改成 `ZETARAKU`。
 * `maidataJsonUrls:` 封面下载源为 `WAHLAP` 时，包含图片文件名信息的 `maidata.json` 的下载地址。您可以根据网络情况更换为能访问的 GitHub Raw 镜像网址。
 * `zetarakuSite:` `ZETARAKU` 下载源服务器地址。如果无法下载，请访问 [maimai-songs](https://maimai-songs.zetaraku.dev/) 并用开发者工具获取新的服务器地址。
+* `xrayAliasUrl:` 本插件的别名数据来自于 Xray Bot 公开的别名信息，设置该项值可以指定从何处获取最新别名。
+* `prefix: ''` 设置命令的前缀。例如，设为 `'/mai'` 后，生成 b50 需要输入 `/mai b50` 才能调用
 * `enableMemCache: true` 是否提前载入图片到内存。如果您内存不够或者堆栈设置偏小，可以将这项设为 `false` 避免 `Java heap size` 等爆内存的情况。
+* `hintOnGeneration: false` 开启后将在生成 b50 或完成表时提醒现在正在生成中

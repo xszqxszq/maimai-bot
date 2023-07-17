@@ -206,8 +206,7 @@ object DXProberApi {
             it.printStackTrace()
         }
     }
-    suspend fun getPlayerData(type: String = "qq", id: String,
-                              b50: Boolean = false): Pair<HttpStatusCode, MaimaiPlayerData?> {
+    suspend fun getPlayerData(type: String = "qq", id: String): Pair<HttpStatusCode, MaimaiPlayerData?> {
         val payload = buildJsonObject {
             put(type, id)
             put("b50", true)
