@@ -2,6 +2,8 @@
 
 一个基于 [mirai](https://github.com/mamoe/mirai) 和 [舞萌 DX 查分器](https://www.diving-fish.com/maimaidx/prober) 以及 [Xray Bot 别名信息](https://download.fanyu.site/maimai/alias_uc.json) 编写的 maimai DX QQ 机器人插件。
 
+本项目是在 Kotlin 平台对 [mai-bot](https://github.com/Diving-Fish/mai-bot) 项目大部分功能进行重新实现，旨在提高生成速度及降低部署门槛。
+
 ## 支持的功能
 
 * b50
