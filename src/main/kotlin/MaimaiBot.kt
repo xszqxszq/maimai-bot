@@ -42,10 +42,7 @@ import net.mamoe.mirai.console.plugin.jvm.KotlinPlugin
 import net.mamoe.mirai.contact.isOperator
 import net.mamoe.mirai.event.*
 import net.mamoe.mirai.event.events.MessageEvent
-import net.mamoe.mirai.message.data.At
-import net.mamoe.mirai.message.data.MessageChainBuilder
-import net.mamoe.mirai.message.data.anyIsInstance
-import net.mamoe.mirai.message.data.firstIsInstance
+import net.mamoe.mirai.message.data.*
 import net.mamoe.mirai.utils.ExternalResource.Companion.toExternalResource
 import net.mamoe.mirai.utils.ExternalResource.Companion.uploadAsImage
 import net.mamoe.mirai.utils.info
@@ -69,6 +66,8 @@ import kotlin.io.path.name
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.random.Random
+import kotlin.time.ExperimentalTime
+import kotlin.time.measureTimedValue
 
 object MaimaiBotSharedData {
     val musics = mutableMapOf<String, MaimaiMusicInfo>()
@@ -374,6 +373,16 @@ object MaimaiBot : KotlinPlugin(
                         具体使用方法请访问项目主页：https://github.com/xszqxszq/maimai-bot
                         """.trimIndent())
                 }
+                startsWith(withPrefix("ap50")) { username ->
+//                    notDenied(denied) {
+//                        if (message.anyIsInstance<At>())
+//                            querySpecial50("qq", message.firstIsInstance<At>().target.toString(), this)
+//                        else if (username.isBlank())
+//                            querySpecial50("qq", sender.id.toString(), this)
+//                        else
+//                            querySpecial50("username", username, this)
+//                    }
+                }
             }
             logger.info { "maimai-bot 插件加载完毕。" }
         }
@@ -454,14 +463,22 @@ object MaimaiBot : KotlinPlugin(
 
     fun withPrefix(s: String) = if (MaimaiConfig.prefix.isBlank()) s else MaimaiConfig.prefix + " " + s
 
+    @OptIn(ExperimentalTime::class)
     suspend fun queryBest(type: String = "qq", id: String, event: MessageEvent) = event.run {
         val result = DXProberApi.getPlayerData(type, id)
         when (result.first) {
             HttpStatusCode.OK -> {
                 if (MaimaiConfig.hintOnGeneration)
                     quoteReply("正在生成中……")
-                MaimaiImage.generateBest(result.second!!).toExternalResource().use { img ->
-                    quoteReply(img.uploadAsImage(subject))
+                val (value, elapsed) = measureTimedValue {
+                    MaimaiImage.generateBest(result.second!!)
+                }
+                value.toExternalResource().use { img ->
+                    quoteReply(buildMessageChain {
+                        append(img.uploadAsImage(subject))
+                        if (MaimaiConfig.showLoadTime)
+                            append("本次生成用时：%.2f 秒".format(elapsed.inWholeMilliseconds / 1000.0))
+                    })
                 }
             }
             HttpStatusCode.BadRequest -> quoteReply("您的QQ未绑定查分器账号或所查询的用户名不存在，请确认用户名对应的玩家在 Diving-Fish 的舞萌 DX 查分器" +

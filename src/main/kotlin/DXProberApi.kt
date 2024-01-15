@@ -195,11 +195,9 @@ object DXProberApi {
     suspend fun getAliases() {
         MaimaiBot.logger.info("正在更新别名……")
         kotlin.runCatching {
-            client.get<Map<String, List<String>>>(MaimaiConfig.xrayAliasUrl).forEach { (alias, ids) ->
-                ids.forEach ids@{ id ->
-                    if (id !in MaimaiBotSharedData.musics)
-                        return@ids
-                    MaimaiBotSharedData.aliases[id]!!.add(alias)
+            client.get<Map<String, List<String>>>(MaimaiConfig.xrayAliasUrl).forEach { (id, aliases) ->
+                aliases.forEach { alias ->
+                    MaimaiBotSharedData.aliases[id]?.add(alias)
                 }
             }
         }.onFailure {

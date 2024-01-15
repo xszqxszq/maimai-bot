@@ -452,26 +452,37 @@ suspend fun Context2d.drawCharts(charts: List<MaimaiPlayScore>, cols: Int, start
                 config.pos.getValue("chAchievements"), Colors.WHITE)
             drawTextRelative("Base: ${chart.ds} -> ${chart.ra}", x, y, config.pos.getValue("chBase"), Colors.WHITE)
 
-            val type = config.pos.getValue("type")
-            drawImage(
-                resolveImageCache("type_${chart.type.lowercase()}.png").toBMP32().scaleLinear(type.scale, type.scale),
-                x + type.x, y + type.y)
-
-            val rateIcon = config.pos.getValue("rateIcon")
-            drawImage(
-                resolveImageCache("music_icon_${chart.rate}.png").toBMP32().scaleLinear(rateIcon.scale, rateIcon.scale),
-                x + rateIcon.x, y + rateIcon.y)
-            if (chart.fc.isNotEmpty()) {
-                val fcIcon = config.pos.getValue("fcIcon")
+            config.pos["type"] ?.let { type ->
                 drawImage(
-                    resolveImageCache("music_icon_${chart.fc}.png").toBMP32().scaleLinear(fcIcon.scale, fcIcon.scale),
-                    x + fcIcon.x, y + fcIcon.y)
+                    resolveImageCache("type_${chart.type.lowercase()}.png").toBMP32()
+                        .scaleLinear(type.scale, type.scale),
+                    x + type.x, y + type.y)
+            }
+
+            config.pos["rateIcon"] ?.let { rateIcon ->
+                drawImage(
+                    resolveImageCache("music_icon_${chart.rate}.png").toBMP32()
+                        .scaleLinear(rateIcon.scale, rateIcon.scale),
+                    x + rateIcon.x, y + rateIcon.y
+                )
+            }
+            if (chart.fc.isNotEmpty()) {
+                config.pos["fcIcon"] ?.let { fcIcon ->
+                    drawImage(
+                        resolveImageCache("music_icon_${chart.fc}.png").toBMP32()
+                            .scaleLinear(fcIcon.scale, fcIcon.scale),
+                        x + fcIcon.x, y + fcIcon.y
+                    )
+                }
             }
             if (chart.fs.isNotEmpty()) {
-                val fsIcon = config.pos.getValue("fsIcon")
-                drawImage(
-                    resolveImageCache("music_icon_${chart.fs}.png").toBMP32().scaleLinear(fsIcon.scale, fsIcon.scale),
-                    x + fsIcon.x, y + fsIcon.y)
+                config.pos["fsIcon"] ?.let { fsIcon ->
+                    drawImage(
+                        resolveImageCache("music_icon_${chart.fs}.png").toBMP32()
+                            .scaleLinear(fsIcon.scale, fsIcon.scale),
+                        x + fsIcon.x, y + fsIcon.y
+                    )
+                }
             }
         }
     }
@@ -519,6 +530,7 @@ object MaimaiConfig: AutoSavePluginConfig("settings") {
     val prefix: String by value("")
     val enableMemCache: Boolean by value(true)
     val hintOnGeneration: Boolean by value(false)
+    val showLoadTime: Boolean by value(false)
 }
 @Serializable
 class MaimaiPicConfig(
